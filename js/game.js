@@ -231,7 +231,7 @@ const Explore = {
   },
   obj() {
     const L = World.L, ppl = L.npcs.filter(n => !n.guard);
-    $('obj').innerHTML = `<b>Capítulo ${this.ch.id}: ${this.ch.title}</b><br>Habla con:<br>${ppl.map(n => `<span class="${n.talked ? 'done' : ''}">${CAST[n.who].name}</span>`).join('<br>')}<br>Notas: ${L.notes.filter(n => n.got).length} / ${L.notes.length}<br>${ppl.every(n => n.talked) ? '<b>Ve a la puerta</b>' : ''}`;
+    $('obj').innerHTML = `<b>Capítulo ${this.ch.id}: ${this.ch.title}</b><br>Habla con:<br>${ppl.map(n => `<span class="${n.talked ? 'done' : ''}">${CAST[n.who].name}</span>`).join('<br>')}<br>Notas: ${L.notes.filter(n => n.got).length} / ${L.notes.length}<br>${ppl.every(n => n.talked) ? '<b>Camina a la puerta (a la derecha)</b>' : '<span class="small">Luego camina a la puerta</span>'}`;
   },
   interact(p) {
     if (this.paused) return; const L = World.L, cx = p.x + p.w / 2;
@@ -243,7 +243,7 @@ const Explore = {
   },
   guard() {
     const ppl = World.L.npcs.filter(n => !n.guard); this.paused = true;
-    if (!ppl.every(n => n.talked)) return speak([{ who: 'guardia', es: 'Primero habla con todos.', en: 'Talk to everyone first.', vo: 'g2' }], () => { this.paused = false; clearPressed(); });
+    if (!ppl.every(n => n.talked)) { const left = ppl.filter(n => !n.talked).map(n => CAST[n.who].name).join(', '); msg('Te falta hablar con: ' + left); return speak([{ who: 'guardia', es: 'Primero habla con todos.', en: 'Talk to everyone first. Missing: ' + left, vo: 'g2' }], () => { this.paused = false; clearPressed(); }); }
     speak([{ who: 'guardia', es: 'Para pasar, contesta mis preguntas.', en: 'Answer my questions to pass.', vo: 'g1' }], () => Gate.start(this.ch));
   },
   note(n) {
@@ -251,7 +251,12 @@ const Explore = {
     panel(`<div class="lbl">NOTA</div><h2>${t}</h2><div class="big">${wrapWords(es)}</div><div class="en" style="margin-top:8px">${en}</div><button class="btn" onclick="Explore.closeNote()">Seguir (Enter)</button>`, { enter: () => this.closeNote() });
   },
   closeNote() { closePanel(); this.paused = false; this.obj(); clearPressed(); },
-  update() { if (!this.paused) World.update(); },
+  update() {
+    if (this.paused) return; World.update();
+    // walking into the door opens it (or the guard tells you who you still need to talk to)
+    const gx = World.L.gate.x; if (this.doorCd > 0) this.doorCd--;
+    if (!this.doorCd && World.players.some(p => !p.dead && p.x + p.w > gx - 10 && p.x < gx + T + 10)) { this.doorCd = 300; this.guard(); }
+  },
   draw() { renderWorld(G.split); },
 };
 

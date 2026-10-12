@@ -46,7 +46,7 @@ function drawOrb(g, o, k) {
 function drawWorld(g) {
   const L = World.L, tk = World.tick;
   L.decor.forEach(d => drawDecor(g, d));
-  if (L.gate) { const x = L.gate.x; tile(g, 'tiles', 130, x, GY - 2 * T); tile(g, 'tiles', 150, x, GY - T); tile(g, 'tiles', 111, x + T + 6, GY - 2 * T); tile(g, 'tiles', 131, x + T + 6, GY - T); }
+  if (L.gate) { const x = L.gate.x; tile(g, 'tiles', 85, x - 2 * T, GY - T); tile(g, 'tiles', 130, x, GY - 2 * T); tile(g, 'tiles', 150, x, GY - T); tile(g, 'tiles', 111, x + T + 6, GY - 2 * T); tile(g, 'tiles', 131, x + T + 6, GY - T); }
   drawGround(g, L);
   L.plats.forEach(([x, y, w]) => drawPlat(g, x, y, w, false, L));
   L.movers.forEach(m => m.cx !== undefined && drawPlat(g, m.cx, m.cy, m.w, true, L));
