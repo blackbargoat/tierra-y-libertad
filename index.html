@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zapata Quiz Battle</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,system-ui,sans-serif;background:#1b1340;color:#fff;min-height:100vh;display:flex;flex-direction:column;align-items:center}
+header{width:100%;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;background:#120c2e;font-weight:700}
+.wrap{max-width:860px;width:100%;padding:24px}
+h1{font-size:2.2rem;margin:.2em 0}.sub{opacity:.85}
+.card{background:#2a1f63;border-radius:18px;padding:22px;margin:14px 0}
+.q{font-size:1.45rem;font-weight:700;margin-bottom:6px}.hint{opacity:.8;font-size:1rem;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ans{border:none;border-radius:14px;padding:22px 14px;font-size:1.1rem;font-weight:700;color:#fff;cursor:pointer;transition:transform .1s;text-align:left}
+.ans:hover{transform:scale(1.03)}.c0{background:#e2403a}.c1{background:#2f7de1}.c2{background:#1ea05a}.c3{background:#d9661a}
+.ans.right{outline:5px solid #fff;box-shadow:0 0 20px #5f5}.ans.wrong{opacity:.35}
+.btn{background:#7a5cff;border:none;color:#fff;font-weight:800;font-size:1.1rem;padding:14px 24px;border-radius:12px;cursor:pointer;margin:6px 6px 0 0}
+.btn:hover{background:#6347e8}.lvl{display:block;width:100%;text-align:left;font-size:1.15rem}
+.fb{margin-top:16px;padding:14px;border-radius:12px;font-size:1.05rem;line-height:1.45}.good{background:#145c34}.bad{background:#6b1d1d}
+.bar{height:10px;background:#120c2e;border-radius:6px;overflow:hidden;margin-bottom:10px}.bar>div{height:100%;background:#41d37e;transition:width .3s}
+input[type=text],textarea{width:100%;font-size:1.1rem;padding:14px;border-radius:12px;border:none;margin-top:6px;font-family:inherit}
+.big{font-size:3rem;font-weight:900}.streak{color:#ff9b3d}
+.learn p{font-size:1.1rem;line-height:1.55}.learn b{color:#9fe7ff}
+@media(max-width:600px){.grid{grid-template-columns:1fr}}
+</style></head><body>
+<header><span>🌽 Zapata Quiz Battle</span><span>🪙 <span id="coins">0</span> &nbsp; <span class="streak">🔥 <span id="streak">0</span></span></span></header>
+<div class="wrap" id="app"></div>
+<script src="data.js"></script>
+<script>
+let coins=0,streak=0;const app=document.getElementById('app');
+const upd=()=>{document.getElementById('coins').textContent=coins;document.getElementById('streak').textContent=streak};
+const shuf=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+// Each lesson = teach cards, then a checkpoint quiz you must ace (100%) to unlock the next stage
+const LESSONS=[
+{t:"Lesson 1: Who Zapata was + 1909",cards:[0,1,2],quiz:[L1[0],L1[1],L1[2],L1[3],L2[5],L2[6]]},
+{t:"Lesson 2: The Revolution + Plan de Ayala",cards:[3,4],quiz:[L1[4],L1[5],L1[6],L1[7],L1[8],L1[9],L2[13]]},
+{t:"Lesson 3: Huerta + Mexico City",cards:[5,6],quiz:[L2[9],L1[10],L2[3],L2[14]]},
+{t:"Lesson 4: His death + legacy",cards:[7,8],quiz:[L1[11],L1[12],L2[10],L2[4],L2[12],L2[15]]}
+];
+const STAGES=[...LESSONS.map((l,i)=>({name:'📖 '+l.t,run:()=>lesson(i,0)})),
+{name:'🟢 Level 1: Easy multiple choice (Spanish)',run:()=>mc(L1,'Level 1',passStage(4))},
+{name:'🟡 Level 2: Real test questions + traps (Spanish)',run:()=>mc(L2,'Level 2',passStage(5))},
+{name:'🔴 Level 3: Write the 5 packet answers',run:()=>write(0,6,0)},
+{name:'⚡ Final Boss: 15 random mixed',run:()=>mc(shuf(L1.concat(L2)).slice(0,15),'Final Boss',passStage(7))}];
+let unlocked=+(localStorage.zq||0);
+const passStage=n=>()=>{if(unlocked<=n){unlocked=n+1;localStorage.zq=unlocked}};
+function home(){app.innerHTML=`<h1>Zapata Quiz Battle 🇲🇽</h1><p class="sub">Learn a bit, then take a quiz on it. You need <b>100%</b> on the first try to unlock the next stage. Miss even one and you redo that quiz.</p>
+${STAGES.map((s,i)=>`<button class="btn lvl" ${i>unlocked?'disabled style="opacity:.4;cursor:not-allowed"':''} onclick="STAGES[${i}].run()">${i<unlocked?'✅':i==unlocked?'▶️':'🔒'} ${s.name}</button>`).join('')}
+<a class="btn lvl" href="game.html" style="display:block;text-decoration:none;background:#2eb082;margin-top:18px">JUEGO: Tierra y Libertad (historia, 8 capítulos)</a>
+<a class="btn lvl" href="battle.html" style="display:block;text-decoration:none;background:#e2403a;margin-top:18px">🎮 BATTLE MODE: 2–3 player platformer (always unlocked)</a>
+<p class="sub" style="margin-top:20px"><a href="#" style="color:#aaa" onclick="localStorage.zq=0;unlocked=0;home();return false">Reset progress</a></p>`}
+function lesson(li,i){const L=LESSONS[li];if(i>=L.cards.length)return mc(L.quiz,L.t+' Checkpoint',passStage(li));const[t,b]=LEARN[L.cards[i]];
+ app.innerHTML=`<p class="sub">${L.t}</p><div class="bar"><div style="width:${(i+1)/L.cards.length*100}%"></div></div><div class="card learn"><div class="q">${t}</div><p>${b}</p></div><button class="btn" onclick="lesson(${li},${Math.max(0,i-1)})">← Back</button><button class="btn" onclick="lesson(${li},${i+1})">${i==L.cards.length-1?'Take the quiz →':'Next →'}</button>`}
+function mc(set,title,onPass){let queue=shuf(set),total=set.length,firstTry=0,seen=new Set(),done=0;
+ const next=()=>{if(!queue.length){const pct=Math.round(firstTry/total*100),ok=pct===100;if(ok&&onPass)onPass();app.innerHTML=`<div class="card" style="text-align:center"><div class="big">${pct}%</div><p>${title}: ${firstTry}/${total} right on the first try</p><p>${ok?'🔥 PERFECT! Next stage unlocked.':'❌ You need 100% to move on. Go again. The answers you missed are shown in the feedback, so remember them.'}</p></div>${ok?'':`<button class="btn" id="again">Retry quiz</button>`}<button class="btn" onclick="home()">${ok?'Next stage →':'Menu'}</button>`;if(!ok)document.getElementById('again').onclick=()=>mc(set,title,onPass);return}
+  const[q,opts,a,ex]=queue.shift();const order=shuf([0,1,2,3]);
+  app.innerHTML=`<div class="bar"><div style="width:${done/total*100}%"></div></div><p class="sub">${title}: ${done}/${total} mastered</p><div class="card"><div class="q">${q}</div><div class="grid">${order.map((o,k)=>`<button class="ans c${k}" data-o="${o}">${opts[o]}</button>`).join('')}</div><div id="fb"></div></div>`;
+  app.querySelectorAll('.ans').forEach(b=>b.onclick=()=>{const o=+b.dataset.o;app.querySelectorAll('.ans').forEach(x=>{x.disabled=true;if(+x.dataset.o===a)x.classList.add('right');else x.classList.add('wrong')});
+   const ok=o===a,key=q;if(ok){if(!seen.has(key))firstTry++;done++;streak++;coins+=100+streak*10}else{seen.add(key);streak=0;queue.push([q,opts,a,ex])}upd();
+   document.getElementById('fb').innerHTML=`<div class="fb ${ok?'good':'bad'}">${ok?'✅ Correct!':'❌ Not quite. This one comes back later.'}<br>${ex}</div><button class="btn" id="nx">Next →</button>`;document.getElementById('nx').onclick=next;document.getElementById('nx').focus()})};next()}
+function write(i,stage,miss){if(i>=L3.length){const ok=miss===0;if(ok)passStage(stage)();app.innerHTML=`<div class="card"><div class="q">${ok?'Level 3: PERFECT 🎉 Final Boss unlocked.':'❌ You missed key ideas on '+miss+' answer(s). You need 100% to move on, so go again.'}</div><p>Formula for any written answer: <b>repeat the question + key fact + porque…</b></p></div>${ok?'':`<button class="btn" onclick="write(0,${stage},0)">Retry Level 3</button>`}<button class="btn" onclick="home()">Menu</button>`;return}
+ const it=L3[i];app.innerHTML=`<div class="bar"><div style="width:${i/L3.length*100}%"></div></div><div class="card"><div class="q">${i+1}. ${it.q}</div><div class="hint">Answer in Spanish. Messy is fine. Formula: repeat the question + key fact + porque…</div><textarea id="t" rows="4"></textarea><button class="btn" id="chk">Check</button><button class="btn" id="hn">Hint</button><div id="fb"></div></div>`;
+ document.getElementById('hn').onclick=()=>{document.getElementById('fb').innerHTML=`<div class="fb bad">💡 ${it.tip}</div>`};
+ document.getElementById('chk').onclick=()=>{const v=document.getElementById('t').value.toLowerCase();const hit=it.keys.filter(g=>g.some(k=>v.includes(k))).length;const ok=hit===it.keys.length;if(ok){coins+=300;streak++}else streak=0;upd();const m=miss+(ok?0:1);
+  document.getElementById('fb').innerHTML=`<div class="fb ${ok?'good':'bad'}">${ok?'✅ Got every key idea!':'⚠️ Missing some key ideas.'} (${hit}/${it.keys.length})<br><br><b>Model answer:</b> ${it.model}</div>${ok?'':`<button class="btn" onclick="write(${i},${stage},${m})">Try again</button>`}<button class="btn" onclick="write(${i+1},${stage},${m})">Next →</button>`}}
+home();
+</script></body></html>
