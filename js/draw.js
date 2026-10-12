@@ -94,11 +94,12 @@ function drawWorld(g) {
   // name tag only when you click someone
   const lb = World.label;
   if (lb && lb.t > 0) {
-    lb.t--; const o = lb.o, cx = o.x + (o.w ? o.w / 2 : 0), top = (o.y != null ? o.y : GY - 70) - 18;
-    g.font = FONT(Math.round(13 * 1.75)); const w = g.measureText(lb.text).width + 20;
+    lb.t--; const o = lb.o, cx = Math.round(o.x + o.w / 2), top = Math.round(o.y) - 14;
+    g.font = FONT(Math.round(11 * 1.75)); const w = Math.round(g.measureText(lb.text).width) + 16;
     g.globalAlpha = Math.min(1, lb.t / 15);
-    box(g, cx - w / 2, top - 30, w, 28, PAL.slate); txt(g, lb.text, cx, top - 9, 13, lb.col || PAL.cream, 'center');
-    g.fillStyle = PAL.ink; g.fillRect(cx - 4, top - 1, 8, 4); g.globalAlpha = 1;
+    g.fillStyle = lb.col; g.fillRect(cx - w / 2 - 2, top - 26, w + 4, 26); g.fillStyle = PAL.ink; g.fillRect(cx - w / 2, top - 24, w, 22);
+    txt(g, lb.text, cx, top - 7, 11, lb.col, 'center'); g.fillStyle = lb.col; g.fillRect(cx - 3, top, 6, 4);
+    g.globalAlpha = 1;
   }
   for (const q of World.parts) { g.globalAlpha = q.dust ? Math.min(1, q.l / 12) * .8 : 1; g.fillStyle = q.c; g.fillRect(q.x | 0, q.y | 0, q.s, q.s); } g.globalAlpha = 1;
 }
