@@ -380,7 +380,7 @@ const Battle = {
   },
   finish() {
     this.state = 'end'; closeAll();
-    const un = CHAPTERS.length; // TESTING: all chapters unlocked (was Save.get('unlocked', 1)) if (this.ch.id + 1 > un) Save.set('unlocked', Math.min(CHAPTERS.length, this.ch.id + 1));
+    const un = Save.get('unlocked', 1); if (this.ch.id + 1 > un) Save.set('unlocked', Math.min(CHAPTERS.length, this.ch.id + 1));
     Cut.start([{ card: this.ch.end, vo: this.ch.endVo }], () => this.summary());
   },
   summary() {
