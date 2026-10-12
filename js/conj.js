@@ -55,3 +55,10 @@ function conjQ(tenses) {
   const g = genConj(tenses);
   return { q: `Conjuga: ${g.v} (${g.mean}), ${PERS[g.pi]}, ${TENSES[g.t].n}`, en: g.en, o: [g.right, ...g.wrong], ex: g.ex, v: [[g.right, g.v, TENSES[g.t].n, TENSES[g.t].hint]], conj: true };
 }
+
+// "nacía" for a nacer/pretérito question -> explain what that form really is
+function explainForm(form) {
+  for (const [v] of CVERBS) for (const t in TENSES) { const i = conj(v, t).indexOf(form); if (i >= 0) return `"${form}" es ${TENSES[t].n} para ${PERS[i]}.`; }
+  return null;
+}
+function whyWrong(opt) { return WHY_WRONG[opt] || explainForm(opt) || 'No es la respuesta correcta.'; }

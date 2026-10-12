@@ -407,3 +407,40 @@ function allVoiceLines() {
   return out;
 }
 if (typeof module !== 'undefined') module.exports = { CHAPTERS, CAST, HEROES, EXTRA_VO, allVoiceLines };
+
+// ---------------------------------------------------------------- written answers (forgiving)
+// Each answer needs a few short ideas. Spelling mistakes are OK.
+const WRITE = [
+  { q: '¿Cuál era el lema del Plan de Ayala? ¿Qué significaba?', en: 'What was the motto of the Plan de Ayala? What did it mean?',
+    ideas: [['Tierra', ['tierra', 'tierras']], ['Libertad', ['libertad', 'libres', 'libre']], ['recuperar la tierra / ser libres', ['recuperar', 'devolver', 'tener', 'propia', 'campesinos', 'trabajar']]],
+    model: 'El lema era "Tierra y Libertad". Significaba recuperar la tierra y ser libres.' },
+  { q: '¿Por qué Zapata rompió con Madero?', en: 'Why did Zapata break with Madero?',
+    ideas: [['Madero', ['madero']], ['no devolvió', ['devolvio', 'devolver', 'regreso', 'dio', 'no']], ['las tierras', ['tierra', 'tierras']]],
+    model: 'Porque Madero no devolvió las tierras a los campesinos.' },
+  { q: '¿Qué cargo tuvo Zapata en 1909? ¿Cuál era su trabajo?', en: 'What job did Zapata have in 1909? What did he do?',
+    ideas: [['presidente', ['presidente']], ['del Consejo (Municipal)', ['consejo', 'municipal']], ['defender las tierras', ['defender', 'defensa', 'proteger', 'tierra', 'tierras', 'recuperar']]],
+    model: 'Fue presidente del Consejo Municipal de Anenecuilco. Su trabajo era defender las tierras.' },
+  { q: '¿Cómo engañaron a Zapata?', en: 'How did they trick Zapata?',
+    ideas: [['armas', ['armas', 'arma']], ['municiones', ['municiones', 'municion', 'balas']], ['una promesa', ['promesa', 'prometio', 'prometieron', 'dar', 'darle', 'dieron', 'dio', 'regalo', 'trampa', 'enga']]],
+    model: 'Le prometieron armas y municiones. Fue una trampa.' },
+  { q: '¿Qué inspiró Zapata en la Constitución de 1917? ¿Qué es hoy?', en: 'What did Zapata inspire in the 1917 Constitution? What is he today?',
+    ideas: [['Artículo 27', ['27', 'veintisiete', 'articulo']], ['la tierra', ['tierra', 'tierras', 'propiedad']], ['un símbolo hoy', ['simbolo', 'bandera', 'heroe', 'campesinos', 'indigenas', 'movimientos']]],
+    model: 'Inspiró el Artículo 27, sobre la tierra. Hoy es un símbolo para los campesinos.' },
+];
+// Why a wrong choice is wrong
+const WHY_WRONG = {
+  'Ciudad de México': 'Ahí entró en 1914, pero no nació ni murió ahí.', 'En la Ciudad de México': 'Ahí entró en 1914.',
+  'Chihuahua': 'Chihuahua está en el norte, la tierra de Villa.', 'Aguascalientes': 'Ahí fue la Convención de 1914.',
+  '10 de abril de 1919': 'Ese día murió Zapata.', '25 de noviembre de 1911': 'Ese día hizo el Plan de Ayala.', 'Diciembre de 1914': 'Ese mes entró a la capital.',
+  '1909': 'En 1909 fue presidente del Consejo.', '1911': 'En 1911 hizo el Plan de Ayala.', '1919': 'En 1919 murió.',
+  'Pancho Villa': 'Villa era su aliado del norte.', 'Madero': 'Madero empezó la Revolución en 1910.', 'Zapata': 'Zapata luchaba contra los hacendados.',
+  'Porfirio Díaz': 'Díaz era el dictador antes de la Revolución.', 'Carranza': 'Carranza fue aliado y después enemigo.', 'Huerta': 'Huerta fue el dictador de 1913.',
+  'El Plan de San Luis': 'Ese plan era de Madero (1910).', 'La Constitución de 1917': 'Es de 1917, no de 1911.', 'El Plan de Guadalupe': 'Ese plan era de Carranza.',
+  'División del Norte': 'Era el ejército de Villa, en el norte.', 'Ejército Constitucionalista': 'Era el ejército de Carranza.', 'Guardia Nacional del Sur': 'Ese nombre no existía.',
+  'En el Consejo Municipal de Anenecuilco': 'Ahí trabajó en 1909.', 'En la Convención de Aguascalientes': 'Fue una reunión en 1914.', 'En el Palacio Nacional de la Ciudad de México': 'No, murió en una hacienda en Morelos.',
+  'Jesús Guajardo': 'Guajardo hizo la trampa. González la planeó.', 'Pablo González': 'González planeó la trampa. Guajardo la hizo.',
+  'Orden y Progreso': 'Ese era el lema de Porfirio Díaz.', 'Pan y Paz': 'No era el lema.', 'Viva México': 'No era el lema.',
+  'Ser presidente de México': 'Zapata no quería el poder. Quería tierra.', 'Ayudar a los hacendados': 'Al revés: luchaba contra ellos.',
+  'Artículo 3': 'El Artículo 3 habla de la educación.', 'Artículo 123': 'El Artículo 123 habla de los trabajadores.', 'Artículo 1': 'El Artículo 1 habla de los derechos.',
+  'La mitad': 'Era una tercera parte (1/3).', 'Toda': 'Era una tercera parte (1/3).', 'Nada': 'Era una tercera parte (1/3).',
+};

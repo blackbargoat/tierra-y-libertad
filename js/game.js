@@ -280,21 +280,25 @@ const Gate = {
     if (this.answered) return; this.answered = true; const ok = this.order[k] === 0, it = this.it;
     document.querySelectorAll('#gopts .opt').forEach((b, i) => { b.disabled = true; b.style.opacity = this.order[i] === 0 ? 1 : .35; });
     Sound.sfx(ok ? 'right' : 'wrong'); if (!ok) this.q.push(it);
-    $('gres').innerHTML = `<div class="${ok ? 'ok' : 'bad'}">${ok ? 'Correcto' : 'No. Es: ' + it.o[0]}</div><div>${wrapWords(it.ex)}</div>${ok ? '' : '<div class="small">Esta pregunta vuelve al final.</div>'}<button class="btn" onclick="Gate.nextQ()">Seguir (Enter)</button>`;
+    $('gres').innerHTML = `<div class="${ok ? 'ok' : 'bad'}">${ok ? 'Correcto' : 'Es: ' + it.o[0]}</div>${ok ? '' : `<div class="small">Elegiste "${it.o[this.order[k]]}": ${whyWrong(it.o[this.order[k]])}</div>`}<div>${wrapWords(it.ex)}</div>${ok ? '' : '<div class="small">Esta pregunta vuelve al final.</div>'}<button class="btn" onclick="Gate.nextQ()">Seguir (Enter)</button>`;
     onEnter = () => this.nextQ();
   },
   write(idx) {
-    const w = L3[idx];
-    panel(`<div class="lbl">ESCRIBE TU RESPUESTA</div><div class="big">${wrapWords(w.q)}</div><div class="en">${WRITE_EN[idx]}</div>
-      <div class="small">Fórmula: repite la pregunta + el dato + porque...</div><textarea id="gw" rows="3" placeholder="Escribe en español..."></textarea>
+    const w = WRITE[idx]; this.tries = 0;
+    panel(`<div class="lbl">ESCRIBE UNA FRASE CORTA</div><div class="big">${wrapWords(w.q)}</div><div class="en">${w.en}</div>
+      <div class="small">Ideas que necesitas: ${w.ideas.length}. Los errores de ortografía están bien.</div><textarea id="gw" rows="2" placeholder="Escribe en español..."></textarea>
       <div id="gres"></div><button class="btn" id="gbtn" onclick="Gate.check(${idx})">Revisar</button>`);
     setTimeout(() => $('gw').focus(), 50);
   },
   check(idx) {
-    const w = L3[idx], v = $('gw').value.toLowerCase(), hit = w.keys.filter(g => g.some(k => v.includes(k))).length, ok = hit === w.keys.length;
-    this.fails += ok ? 0 : 1; Sound.sfx(ok ? 'right' : 'wrong');
-    $('gres').innerHTML = `<div class="${ok ? 'ok' : 'bad'}">${ok ? 'Muy bien' : `Te faltan ideas (${hit} de ${w.keys.length})`}</div><div class="lbl">RESPUESTA MODELO</div><div>${wrapWords(w.model)}</div><div class="small">${w.tip}</div>`;
-    const b = $('gbtn'); if (ok || this.fails >= 2) { b.textContent = 'Seguir'; b.onclick = () => this.nextQ(); onEnter = () => this.nextQ(); } else { b.textContent = 'Revisar otra vez'; }
+    const w = WRITE[idx], { have, miss } = gradeWriting($('gw').value, w.ideas), n = w.ideas.length; this.tries++;
+    const full = miss.length === 0, half = have.length >= Math.ceil(n / 2), pass = full || half || this.tries >= 2;
+    G.players.forEach(p => p.score += full ? 100 : half ? 50 : 0);
+    Sound.sfx(full || half ? 'right' : 'wrong');
+    $('gres').innerHTML = `<div class="${full || half ? 'ok' : 'bad'}">${full ? 'Muy bien. +100' : half ? 'Casi. Medio punto: +50' : 'Todavía no'}</div>
+      ${have.length ? `<div class="small">Tienes: ${have.join(', ')}</div>` : ''}${miss.length ? `<div class="small">Te falta: ${miss.join(', ')}</div>` : ''}
+      <div class="lbl">UNA BUENA RESPUESTA</div><div>${wrapWords(w.model)}</div>`;
+    const b = $('gbtn'); if (pass) { b.textContent = 'Seguir (Enter)'; b.onclick = () => this.nextQ(); onEnter = () => this.nextQ(); } else b.textContent = 'Revisar otra vez';
   },
   pass() { closePanel(); Sound.sfx('open'); Battle.start(this.ch); },
   update() { World.update && 0; },
@@ -330,7 +334,7 @@ const Battle = {
   nextQ() {
     if (this.state === 'intro') this.state = 'read';
     if (this.qi >= this.qs.length) return this.afterQs();
-    const q = this.qs[this.qi++], order = shuf([0, 1, 2, 3]), sp = this.spots(); this.cur = q; this.order = order;
+    const q = this.qs[this.qi++], order = shuf([0, 1, 2, 3]), sp = this.spots(); this.cur = q; this.order = order; this.wrongs = [];
     World.orbs = order.map((o, k) => ({ x: sp[k][0], y: sp[k][1], k, o, right: o === 0, alive: true }));
     G.players.forEach((p, i) => { World.spawn(p, i); p.lock = 0; if (p.hero === 'zapata' && p.streak < 1) p.streak = 1; });
     World.shots = World.shots.filter(s => !s.enemy);
@@ -347,12 +351,13 @@ const Battle = {
       <div class="small">Haz clic en una palabra para traducirla.</div><button class="btn" onclick="Battle.play()">Listo (Enter)</button>`, { enter: () => this.play() });
   },
   play() { closePanel(); clearPressed(); this.state = 'play'; },
-  orb(p, ok) {
+  orb(p, ok, o) {
     if (ok) {
       p.streak++; p.best = Math.max(p.best, p.streak); p.score += 100; p.right++; p.ammo += 3; p.hp = Math.min(100, p.hp + 30);
       Sound.sfx('right'); World.burst(p.x + p.w / 2, p.y, PAL.lime, 24, 10); this.reveal(p);
     } else {
       const sec = p.hero === 'madero' ? 5 : 10; p.lock = p.lockMax = sec * FPS; p.score = Math.max(0, p.score - 50); p.stun = 25; p.vy = -8;
+      (this.wrongs = this.wrongs || []).push([p, this.cur.o[o.o]]);
       if (p.hero !== 'guajardo') p.streak = 0; Sound.sfx('wrong'); msg(`${p.name}: incorrecto. Espera ${sec} segundos.`);
     }
   },
@@ -360,7 +365,7 @@ const Battle = {
     this.state = 'reveal'; const q = this.cur;
     const verbs = (q.v || []).map(([f, inf, t, m]) => `<div><span style="color:#f4ac66">${f}</span> = ${m} <span class="small">(${inf}, ${t})</span></div>`).join('');
     panel(`<h2>${p ? 'Correcto: ' + p.name : 'Se acabó el tiempo'}</h2><div>${wrapWords(q.q)}</div><div class="en">${q.en || ''}</div>
-      <div class="ok">${wrapWords(q.o[0])}</div><div>${q.conj ? q.ex : wrapWords(q.ex)}</div>${verbs ? '<div class="lbl">VERBOS</div>' + verbs : ''}
+      <div class="ok">${wrapWords(q.o[0])}</div>${(this.wrongs || []).map(([pl, opt]) => `<div class="small" style="color:${pl.color}">Jugador ${pl.i + 1} eligió "${opt}": ${whyWrong(opt)}</div>`).join('')}<div>${q.conj ? q.ex : wrapWords(q.ex)}</div>${verbs ? '<div class="lbl">VERBOS</div>' + verbs : ''}
       <button class="btn" onclick="Battle.nextQ()">Siguiente (Enter)</button>`, { enter: () => this.nextQ() });
   },
   afterQs() {
@@ -400,7 +405,7 @@ const Battle = {
     if (ok) { if (cq.c.type === 'p') { const pw = pick(POWERS); pw.f(p); reward = pw.n; } else { p.armor = Math.min(100, p.armor + 50); p.hp = 100; p.ammo += 4; reward = 'Armadura, vida y balas'; } p.score += 50; }
     Sound.sfx(ok ? 'right' : 'wrong');
     document.querySelectorAll('#copts .opt').forEach((b, i) => { b.disabled = true; b.style.opacity = cq.order[i] === 0 ? 1 : .35; });
-    $('cres').innerHTML = `<div class="${ok ? 'ok' : 'bad'}">${ok ? 'Correcto. Ganas: ' + reward : 'No. Es: ' + cq.q.o[0]}</div><div>${cq.q.ex}</div><button class="btn" onclick="Battle.resume()">Seguir (Enter)</button>`;
+    $('cres').innerHTML = `<div class="${ok ? 'ok' : 'bad'}">${ok ? 'Correcto. Ganas: ' + reward : 'Es: ' + cq.q.o[0]}</div>${ok ? '' : `<div class="small">Elegiste "${cq.q.o[cq.order[k]]}": ${whyWrong(cq.q.o[cq.order[k]])}</div>`}<div>${cq.q.ex}</div><button class="btn" onclick="Battle.resume()">Seguir (Enter)</button>`;
     onEnter = () => this.resume();
   },
   chest(p, c) {
@@ -483,3 +488,19 @@ function loop(t) {
 }
 fitStage();
 Promise.all([loadArt(), document.fonts ? document.fonts.load('32px Pixel').catch(() => {}) : 0, document.fonts ? document.fonts.load('32px Future').catch(() => {}) : 0]).then(() => { Title.start(); requestAnimationFrame(loop); });
+
+// forgiving grader: accents ignored, small spelling mistakes allowed
+function gradeWriting(text, ideas) {
+  const plain = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const words = plain(text).split(/[^a-z0-9ñ]+/).filter(Boolean), full = ' ' + words.join(' ') + ' ';
+  const dist = (a, b) => { // Damerau-Levenshtein (swapped letters count as 1)
+    const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]); for (let j = 1; j <= b.length; j++) d[0][j] = j;
+    for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    } return d[a.length][b.length];
+  };
+  const hit = k => { k = plain(k); if (full.includes(' ' + k + ' ')) return true; const tol = k.length >= 8 ? 2 : k.length >= 4 ? 1 : 0; return words.some(w => dist(w, k) <= tol || (k.length >= 5 && w.startsWith(k.slice(0, 5)))); };
+  const have = [], miss = []; for (const [name, ks] of ideas) (ks.some(hit) ? have : miss).push(name);
+  return { have, miss };
+}
