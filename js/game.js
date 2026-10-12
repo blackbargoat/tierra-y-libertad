@@ -223,7 +223,7 @@ const EV = {
 };
 const Explore = {
   start(ch) {
-    G.scene = this; closeAll(); this.ch = ch; this.paused = false;
+    G.scene = this; closeAll(); this.ch = ch; this.paused = false; this.doorCd = 0;
     G.players.forEach(p => Object.assign(p, { hp: 100, lock: 0, gun: null }));
     World.init(buildExplore(ch), 'explore', G.players, EV); World.cam = null;
     Sound.play(ch.id === 7 ? 'sad' : 'calm'); show('obj'); this.obj();
