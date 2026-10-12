@@ -62,17 +62,17 @@ function drawWorld(g) {
   World.orbs.forEach((o, k) => { if (o.alive) drawOrb(g, o, k); });
   for (const m of World.mobs) {
     if (m.dead) continue;
-    if (m.t === 'w') drawChar(g, 'federal', m.x + m.w / 2, m.y + m.h, 2.4, m.dir, Math.floor(m.anim) % 4, m.flash ? .5 : 1);
+    if (m.t === 'w') drawChar(g, 'federal', m.x + m.w / 2, m.y + m.h, 2.4, m.dir, walkFrame(Math.floor(m.anim)), m.flash ? .5 : 1);
     else if (m.t === 'f') { const s = vulture((tk >> 3) % 2); g.save(); g.translate(m.x + m.w / 2, m.y); if (m.dir < 0) g.scale(-1, 1); g.drawImage(s, -24, 0, 48, 36); g.restore(); }
     else {
-      drawChar(g, m.who, m.x + m.w / 2, m.y + m.h, 6.2, m.dir, Math.floor(World.gt * 6) % 4, m.flash ? .5 : 1);
+      drawChar(g, m.who, m.x + m.w / 2, m.y + m.h, 6.2, m.dir, walkFrame(Math.floor(World.gt * 6)), m.flash ? .5 : 1);
       txt(g, m.name, m.x + m.w / 2, m.y - 30, 24, PAL.paper, 'center', PAL.ink);
       g.fillStyle = PAL.ink; g.fillRect(m.x - 4, m.y - 22, m.w + 8, 14); g.fillStyle = PAL.red; g.fillRect(m.x, m.y - 18, m.w * Math.max(0, m.hp) / m.hpMax, 6);
       if (m.armorMax) { g.fillStyle = PAL.grey; g.fillRect(m.x, m.y - 12, m.w * m.armor / m.armorMax, 3); }
     }
   }
   for (const n of L.npcs) {
-    drawChar(g, n.who, n.x, GY, 2.5, n.face, 0);
+    drawChar(g, n.who, n.x, GY, 2.5, n.face, 0, 1, 1, 1 + Math.sin(tk / 22 + n.x) * .015);
     if (!n.talked && !n.guard) { const y = GY - 90 + Math.sin(tk / 12) * 3; box(g, n.x - 9, y - 22, 18, 24, PAL.paper); txt(g, '!', n.x, y - 3, 16, PAL.ink, 'center'); }
   }
   for (const s of World.shots) {
@@ -85,14 +85,15 @@ function drawWorld(g) {
   }
   for (const p of World.players) {
     if (p.dead) continue;
-    const fr = !p.ground ? 4 : Math.abs(p.vx) > .6 ? Math.floor(p.walk) % 4 : 0;
+    const fr = !p.ground ? (p.vy < 0 ? 4 : 6) : Math.abs(p.vx) > .6 ? walkFrame(Math.floor(p.walk)) : 0;
+    const sq = (p.squash || 0) / 9, st = (p.stretch || 0) / 9, sx = 1 + .2 * sq - .12 * st, sy = 1 - .2 * sq + .14 * st;
     const a = p.inv > 0 && (p.inv >> 2) % 2 ? .4 : p.lock > 0 ? .55 : 1;
-    drawChar(g, p.hero, p.x + p.w / 2, p.y + p.h, 2.5, p.face, fr, a);
+    drawChar(g, p.hero, p.x + p.w / 2, p.y + p.h, 2.5, p.face, fr, a, sx, sy);
     txt(g, p.name, p.x + p.w / 2, p.y - 12, 12, p.color, 'center', PAL.ink);
     if (p.lock > 0) { g.fillStyle = PAL.ink; g.fillRect(p.x - 6, p.y - 30, p.w + 12, 8); g.fillStyle = PAL.red; g.fillRect(p.x - 4, p.y - 28, (p.w + 8) * p.lock / p.lockMax, 4); }
     if (p.shieldT > 0) { g.strokeStyle = PAL.sky; g.lineWidth = 3; g.strokeRect(p.x - 8, p.y - 8, p.w + 16, p.h + 12); }
   }
-  for (const q of World.parts) { g.fillStyle = q.c; g.fillRect(q.x | 0, q.y | 0, q.s, q.s); }
+  for (const q of World.parts) { g.globalAlpha = q.dust ? Math.min(1, q.l / 12) * .8 : 1; g.fillStyle = q.c; g.fillRect(q.x | 0, q.y | 0, q.s, q.s); } g.globalAlpha = 1;
 }
 
 function playerCam(p, vw, L) {

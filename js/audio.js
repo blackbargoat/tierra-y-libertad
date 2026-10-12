@@ -1,19 +1,21 @@
 'use strict';
 // Sound: synthesized music + effects, and the Spanish voice files
 const Sound = {
-  ctx: null, muted: Save.get('mute', false), song: null, step: 0, next: 0, timer: null, vo: null,
+  ctx: null, muted: Save.get('mute', false), vol: Object.assign({ music: .8, voice: 1, sfx: .8 }, Save.get('vol', {})),
+  mv(k) { return this.muted ? 0 : Math.min(1, .5 * this.vol.music * k); },
+  applyVol() { Save.set('vol', this.vol); if (this.track) this.track.volume = this.mv(1); if (this.mus) this.mus.gain.value = .32 * this.vol.music; if (this.fx) this.fx.gain.value = .5 * this.vol.sfx; if (this.vo) this.vo.volume = this.vol.voice; }, song: null, step: 0, next: 0, timer: null, vo: null,
   init() {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     try {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
       this.out = this.ctx.createGain(); this.out.gain.value = this.muted ? 0 : 1; this.out.connect(this.ctx.destination);
-      this.mus = this.ctx.createGain(); this.mus.gain.value = .32; this.mus.connect(this.out);
-      this.fx = this.ctx.createGain(); this.fx.gain.value = .5; this.fx.connect(this.out);
+      this.mus = this.ctx.createGain(); this.mus.gain.value = .32 * this.vol.music; this.mus.connect(this.out);
+      this.fx = this.ctx.createGain(); this.fx.gain.value = .5 * this.vol.sfx; this.fx.connect(this.out);
       this.timer = setInterval(() => this.tick(), 25);
     } catch (e) { this.ctx = null; }
     if (this.want && !this.trackName) { const w = this.want; this.want = null; this.play(w); }
   },
-  toggle() { this.muted = !this.muted; Save.set('mute', this.muted); if (this.out) this.out.gain.value = this.muted ? 0 : 1; if (this.vo) this.vo.muted = this.muted; if (this.track) this.track.volume = this.muted ? 0 : .45; },
+  toggle() { this.muted = !this.muted; Save.set('mute', this.muted); if (this.out) this.out.gain.value = this.muted ? 0 : 1; if (this.vo) this.vo.muted = this.muted; if (this.track) this.track.volume = this.mv(1); },
   stopTrack() { if (this.track) { this.track.pause(); this.track = null; } this.trackName = null; },
   f: n => 440 * Math.pow(2, (n - 69) / 12),
   note(n, t, dur, type, vol, dest) {
@@ -35,7 +37,7 @@ const Sound = {
     this.want = name;
     if (TRACKS[name]) {
       this.song = null; if (this.trackName === name && this.track) return;
-      this.stopTrack(); const a = new Audio('assets/music/' + TRACKS[name]); a.loop = true; a.volume = this.muted ? 0 : .45; a.playbackRate = name === 'boss' ? 1.08 : 1;
+      this.stopTrack(); const a = new Audio('assets/music/' + TRACKS[name]); a.loop = true; a.volume = this.mv(1); a.playbackRate = name === 'boss' ? 1.08 : 1;
       this.track = a; this.trackName = name; a.play().catch(() => { if (this.track === a) this.trackName = null; });
       return;
     }
@@ -73,13 +75,13 @@ const Sound = {
   // ---- voice ----
   voice(id, onend) {
     this.stopVoice();
-    const a = new Audio('assets/vo/' + id + '.mp3'); a.muted = this.muted; this.vo = a;
-    if (this.mus) this.mus.gain.setTargetAtTime(.1, this.ctx.currentTime, .1); if (this.track && !this.muted) this.track.volume = .12;
-    let done = false; const fin = () => { if (done) return; done = true; if (this.mus && this.ctx) this.mus.gain.setTargetAtTime(.32, this.ctx.currentTime, .3); if (this.track && !this.muted) this.track.volume = .45; onend && onend(); };
+    const a = new Audio('assets/vo/' + id + '.mp3'); a.muted = this.muted; a.volume = this.vol.voice; this.vo = a;
+    if (this.mus) this.mus.gain.setTargetAtTime(.1, this.ctx.currentTime, .1); if (this.track) this.track.volume = this.mv(.27);
+    let done = false; const fin = () => { if (done) return; done = true; if (this.mus && this.ctx) this.mus.gain.setTargetAtTime(.32 * this.vol.music, this.ctx.currentTime, .3); if (this.track) this.track.volume = this.mv(1); onend && onend(); };
     a.onended = fin; a.onerror = fin; a.play().catch(fin);
     return a;
   },
-  stopVoice() { if (this.vo) { this.vo.onended = null; this.vo.onerror = null; this.vo.pause(); this.vo = null; if (this.mus && this.ctx) this.mus.gain.setTargetAtTime(.32, this.ctx.currentTime, .3); if (this.track && !this.muted) this.track.volume = .45; } },
+  stopVoice() { if (this.vo) { this.vo.onended = null; this.vo.onerror = null; this.vo.pause(); this.vo = null; if (this.mus && this.ctx) this.mus.gain.setTargetAtTime(.32 * this.vol.music, this.ctx.currentTime, .3); if (this.track) this.track.volume = this.mv(1); } },
 };
 
 // Songs: each one is a small pattern player. chords are root notes; play() schedules one step.

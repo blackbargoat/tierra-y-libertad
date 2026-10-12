@@ -61,6 +61,13 @@ textarea,input[type=text]{width:100%;font-family:Pixel,monospace;font-size:42px;
 .selcol canvas{display:block;margin:6px auto;width:160px;height:200px;background:#5a627a}
 .chap{display:flex;justify-content:space-between;align-items:center;background:#2b2f3d;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:39px}
 .chap:hover{background:#5a627a}.chap.lock{opacity:.4;cursor:default}
+#settings{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:900px;max-height:690px;overflow:auto;background:#434a5f;border:6px solid #2b2f3d;outline:4px solid #f4ac66;padding:20px 28px;z-index:20;font-size:30px;color:#fbf1e3;box-shadow:0 0 0 2000px rgba(43,47,61,.75)}
+#settings h2{font-family:Future,Pixel;font-weight:normal;font-size:38px;margin:0 0 6px;color:#f4ac66}
+#settings .lbl{font-size:24px;color:#959ab1;margin-top:14px}
+#settings .small{font-size:22px;color:#c2e3e8}
+.srow{display:flex;align-items:center;gap:14px;margin:4px 0}.srow span{width:150px}.srow input{flex:1;accent-color:#f4ac66;height:20px}.srow b{width:50px;text-align:right;font-weight:normal;color:#f4ac66}
+.kt{border-collapse:collapse;margin-top:6px}.kt td{padding:3px 8px;font-size:26px}
+.kb{font-family:Pixel,monospace;font-size:26px;min-width:110px;background:#2b2f3d;color:#fbf1e3;border:3px solid #5a627a;padding:2px 8px;cursor:pointer}.kb:hover{border-color:#f4ac66}.kb.dup{border-color:#d95763;color:#d95763}
 </style></head><body>
 <div id="wrap"><div id="stage">
  <canvas id="c" width="1280" height="720"></canvas>
@@ -71,6 +78,7 @@ textarea,input[type=text]{width:100%;font-family:Pixel,monospace;font-size:42px;
  <div id="sub" class="hide"><canvas id="subpor" width="96" height="96"></canvas><div><div class="name" id="subname"></div><div class="es" id="subes"></div><div class="en" id="suben"></div></div><div class="next">Enter</div></div>
  <div id="card" class="hide"><div id="cardlines"></div><div class="next">Enter</div></div>
  <div id="dim" class="hide"></div>
+ <div id="settings" class="hide"></div>
  <div id="panel" class="hide"></div>
 </div></div>
 <div id="tip"></div>

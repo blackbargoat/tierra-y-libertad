@@ -13,7 +13,10 @@ addEventListener('resize', fitStage);
 let onEnter = null, onKey = null, openedAt = 0;
 addEventListener('keydown', e => {
   Sound.init();
-  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+  if (Settings.capture) { e.preventDefault(); Settings.setKey(e.code); return; }
+  if (e.target.tagName === 'TEXTAREA' || (e.target.tagName === 'INPUT' && e.target.type === 'text')) return;
+  if (e.code === 'Escape') { e.preventDefault(); Settings.isOpen ? Settings.close() : Settings.open(); return; }
+  if (Settings.isOpen) return;
   if (e.code === 'KeyM') { Sound.toggle(); return; }
   if (Date.now() - openedAt < 250) return;
   if (onKey && onKey(e)) { e.preventDefault(); return; }
@@ -67,15 +70,15 @@ const Title = {
     panel(`<div style="text-align:center">
       <div class="lbl">JUGADORES</div>${opt('nP', 1, '1')}${opt('nP', 2, '2')}${opt('nP', 3, '3')}
       <div class="lbl">PANTALLA</div>${opt('split', true, 'Dividida')}${opt('split', false, 'Compartida')}
-      <div><button class="btn" style="font-size:30px;margin-top:16px" onclick="Select.start()">Jugar</button></div>
-      <div class="small">Enter para jugar. M = sonido. <a href="index.html" style="color:#c2e3e8">Modo estudio</a></div></div>`, { top: '74%', width: '520px', noDim: true, enter: () => Select.start() });
+      <div><button class="btn" style="font-size:30px;margin-top:16px" onclick="Select.start()">Jugar</button><button class="btn alt" onclick="Settings.open()">Ajustes</button></div>
+      <div class="small">Enter para jugar. Esc = ajustes. <a href="index.html" style="color:#c2e3e8">Modo estudio</a></div></div>`, { top: '74%', width: '520px', noDim: true, enter: () => Select.start() });
   },
   update() { this.x += 1.2; },
   draw() {
     drawBackground(ctx, 'village', this.x, W);
     for (let x = -((this.x) % T); x < W; x += T) { tile(ctx, 'tiles', 22, x, 520); for (let y = 520 + T; y < H; y += T) tile(ctx, 'tiles', 4, x, y); }
     const ids = ['zapata', 'campesino', 'soldado', 'campesina', 'villa'];
-    ids.forEach((id, i) => drawChar(ctx, id, ((G.t * 1.4 + i * 110) % (W + 300)) - 150, 520, 4, 1, Math.floor(G.t / 8 + i) % 4));
+    ids.forEach((id, i) => drawChar(ctx, id, ((G.t * 1.4 + i * 110) % (W + 300)) - 150, 520, 4, 1, walkFrame(Math.floor(G.t / 8 + i))));
     ctx.fillStyle = 'rgba(43,47,61,.55)'; ctx.fillRect(0, 70, W, 170);
     ctx.font = '84px Future, Pixel'; ctx.textAlign = 'center'; ctx.fillStyle = PAL.ink; ctx.fillText('TIERRA Y LIBERTAD', W / 2 + 4, 174); ctx.fillStyle = PAL.paper; ctx.fillText('TIERRA Y LIBERTAD', W / 2, 170);
     txt(ctx, 'La historia de Emiliano Zapata', W / 2, 222, 22, PAL.sand, 'center');
@@ -94,7 +97,7 @@ const Select = {
   },
   render() {
     const cols = this.idx.map((k, i) => { const h = HEROES[k]; return `<div class="selcol" style="border-color:${this.ready[i] ? PCOL[i] : PAL.ink}">
-      <div style="color:${PCOL[i]};font-size:22px">J${i + 1} · ${PKEYS[i].label}</div><canvas id="sel${i}" width="160" height="200"></canvas>
+      <div style="color:${PCOL[i]};font-size:22px">Jugador ${i + 1}</div><div class="small">${keysLabel(i)}</div><canvas id="sel${i}" width="160" height="200"></canvas>
       <div style="font-size:26px;color:#fbf1e3">${h.name}</div><div style="color:#f4ac66;font-size:22px">${h.ab}</div>
       <div style="font-size:20px">${h.es}</div><div class="en">${h.en}</div>
       <div class="small">${this.ready[i] ? 'Listo' : 'Izq / Der: cambiar. Saltar: listo'}</div></div>`; }).join('');
@@ -114,7 +117,7 @@ const Select = {
   update() {},
   draw() {
     Title.draw.call({ x: G.t });
-    this.idx.forEach((k, i) => { const c = $('sel' + i); if (!c) return; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = PAL.slate2; g.fillRect(0, 0, 160, 200); drawChar(g, HEROES[k].id, 80, 190, 6.5, 1, Math.floor(G.t / 9) % 4); });
+    this.idx.forEach((k, i) => { const c = $('sel' + i); if (!c) return; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = PAL.slate2; g.fillRect(0, 0, 160, 200); drawChar(g, HEROES[k].id, 80, 190, 6.5, 1, walkFrame(Math.floor(G.t / 9))); });
   },
 };
 
@@ -139,7 +142,7 @@ const Cut = {
     G.scene = this; closeAll(); Sound.play(G.ch && G.ch.id === 7 ? 'sad' : 'story');
     this.steps = withTitle ? [{ card: [[`Capítulo ${G.ch.id}`, G.ch.years], [G.ch.title, '']] }, ...steps] : steps;
     this.i = -1; this.done = done; this.actors = {}; this.theme = 'village'; this.pan = 0; this.shake = 0; this.wait = 0; this.waitFor = null;
-    onKey = e => { if (e.code === 'Escape') { this.finish(); return true; } return false; };
+    onKey = null;
     this.next();
   },
   finish() { Sound.stopVoice(); show('card', false); show('sub', false); show('topbar', false); onKey = null; onEnter = null; const d = this.done; this.done = null; d && d(); },
@@ -192,7 +195,7 @@ const Cut = {
     if (this.theme === 'sky') { drawDecor(ctx, { k: 'flag', x: 1080, y: gy }); drawDecor(ctx, { k: 'tree', x: 150, y: gy }); }
     for (const id in this.actors) {
       const a = this.actors[id], talking = G.speaker === id, bob = talking ? Math.abs(Math.sin(G.t / 6)) * 4 : 0, jy = a.jump ? Math.abs(Math.sin(a.jump / 40 * Math.PI * 2)) * 40 : 0;
-      const fr = a.fallen ? 5 : a.walking ? Math.floor(G.t / 8) % 4 : a.jump ? 4 : 0;
+      const fr = a.fallen ? 5 : a.walking ? walkFrame(Math.floor(G.t / 8)) : a.jump ? 4 : 0;
       drawChar(ctx, id, a.x, gy - bob - jy + (a.fallen ? 4 : 0), 5, a.face, fr);
       if (talking) { ctx.fillStyle = PAL.paper; ctx.beginPath(); ctx.moveTo(a.x - 10, gy - 150); ctx.lineTo(a.x + 10, gy - 150); ctx.lineTo(a.x, gy - 136); ctx.fill(); }
       if (a.flag) { ctx.fillStyle = PAL.dirt2; ctx.fillRect(a.x + 34, gy - 230, 6, 210); ctx.fillStyle = PAL.ink; ctx.fillRect(a.x + 40, gy - 232, 236, 74); ctx.fillStyle = PAL.maroon; ctx.fillRect(a.x + 43, gy - 229, 230, 68); txt(ctx, 'TIERRA Y', a.x + 158, gy - 200, 18, PAL.paper, 'center'); txt(ctx, 'LIBERTAD', a.x + 158, gy - 170, 18, PAL.paper, 'center'); }
@@ -422,6 +425,37 @@ const Credits = {
 };
 
 // =====================================================================
+// SETTINGS (Esc): volume, screen, key bindings
+// =====================================================================
+const Settings = {
+  isOpen: false, capture: null,
+  open() {
+    this.isOpen = true; if (Sound.vo) Sound.vo.pause(); this.render(); show('settings');
+  },
+  close() { this.isOpen = false; this.capture = null; show('settings', false); if (Sound.vo) Sound.vo.play().catch(() => {}); for (const k in keys) keys[k] = false; clearPressed(); },
+  render() {
+    const sl = (k, label) => `<div class="srow"><span>${label}</span><input type="range" min="0" max="100" value="${Math.round(Sound.vol[k] * 100)}" oninput="Sound.vol.${k}=this.value/100;Sound.applyVol();this.nextElementSibling.textContent=this.value"><b>${Math.round(Sound.vol[k] * 100)}</b></div>`;
+    const acts = [['j', 'Saltar'], ['l', 'Izquierda'], ['r', 'Derecha'], ['f', 'Disparar / hablar']];
+    const used = {}; PKEYS.forEach(k => acts.forEach(([a]) => used[k[a]] = (used[k[a]] || 0) + 1));
+    const rows = PKEYS.map((k, i) => `<tr><td style="color:${PCOL[i]}">Jugador ${i + 1}</td>${acts.map(([a]) => { const cap = this.capture && this.capture[0] === i && this.capture[1] === a; return `<td><button class="kb${used[k[a]] > 1 ? ' dup' : ''}" onclick="Settings.capture=[${i},'${a}'];Settings.render()">${cap ? '...' : keyName(k[a])}</button></td>`; }).join('')}</tr>`).join('');
+    const inCut = G.scene === Cut;
+    $('settings').innerHTML = `<h2>Ajustes</h2>
+      <div class="lbl">VOLUMEN</div>${sl('music', 'Música')}${sl('voice', 'Voces')}${sl('sfx', 'Efectos')}
+      <div class="lbl">PANTALLA</div><button class="btn ${G.split ? 'on' : 'alt'}" onclick="G.split=true;Save.set('split',true);Settings.render()">Dividida</button><button class="btn ${!G.split ? 'on' : 'alt'}" onclick="G.split=false;Save.set('split',false);Settings.render()">Compartida</button>
+      <div class="lbl">CONTROLES ${this.capture ? '· presiona una tecla (Esc cancela)' : '· haz clic para cambiar'}</div>
+      <table class="kt"><tr><td></td>${acts.map(([, n]) => `<td class="small">${n}</td>`).join('')}</tr>${rows}</table>
+      <button class="btn alt" onclick="Settings.resetKeys()">Controles originales</button>
+      <div style="margin-top:8px"><button class="btn" onclick="Settings.close()">Seguir (Esc)</button>${inCut ? '<button class="btn alt" onclick="Settings.close();Sound.stopVoice();Cut.finish()">Saltar escena</button>' : ''}<button class="btn alt" onclick="Settings.close();Chapters.start()">Capítulos</button><button class="btn alt" onclick="Settings.close();Title.start()">Menú</button></div>`;
+  },
+  setKey(code) {
+    const [i, a] = this.capture; this.capture = null;
+    if (code !== 'Escape') { PKEYS[i][a] = code; Save.set('keys', PKEYS.map(({ l, r, j, f }) => ({ l, r, j, f }))); Sound.sfx('select'); }
+    this.render();
+  },
+  resetKeys() { PKEYS.forEach((k, i) => Object.assign(k, DEFAULT_KEYS[i])); Save.set('keys', []); this.render(); },
+};
+
+// =====================================================================
 // MAIN LOOP
 // =====================================================================
 // fixed 60 updates per second, no matter the screen refresh rate (120 Hz Macs ran the game 2x fast)
@@ -429,7 +463,7 @@ let lastT = 0, acc = 0; const STEP = 1000 / 60;
 function loop(t) {
   requestAnimationFrame(loop); if (!lastT) lastT = t; acc += Math.min(100, t - lastT); lastT = t;
   ctx.imageSmoothingEnabled = false;
-  while (acc >= STEP) { acc -= STEP; G.t++; if (G.scene && G.scene.update) G.scene.update(); }
+  while (acc >= STEP) { acc -= STEP; if (Settings.isOpen) continue; G.t++; if (G.scene && G.scene.update) G.scene.update(); }
   if (G.scene && G.scene.draw) G.scene.draw();
 }
 fitStage();

@@ -22,7 +22,7 @@ const CAST = {
   gonzalez: { name: 'Pablo González',      voice: '43173c95-3ec8-446a-a162-6504332c578b' },
   guajardo: { name: 'Jesús Guajardo',      voice: 'e5666b9c-99a2-4fac-8b4e-abee078b186d' },
   soldado:  { name: 'Soldado',             voice: 'ef70cc83-3015-4bad-9359-0ea968c43ec0' },
-  maestra:  { name: 'La maestra',          voice: 'ca83ca7f-c186-493d-bd69-0d765fa861b2' },
+  maestra:  { name: 'La maestra',          voice: '75e72cd5-011b-4130-a474-e8b1ab341f04' },
   vecina:   { name: 'Vecina',              voice: '80924413-1ea8-4e64-9719-e00b86796f05' },
   guardia:  { name: 'Guardia',             voice: 'f1e8226e-2248-4d5f-b43c-0a79e9949dbf' },
   nina:     { name: 'Estudiante',          voice: '0178ef57-ada4-43d9-992b-8d9221045bb4' },

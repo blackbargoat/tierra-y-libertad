@@ -7,6 +7,13 @@ const PKEYS = [
   { l: 'ArrowLeft', r: 'ArrowRight', j: 'ArrowUp', f: 'ArrowDown', label: 'Flechas' },
   { l: 'KeyJ', r: 'KeyL', j: 'KeyI', f: 'KeyK', label: 'I J K L' },
 ];
+const DEFAULT_KEYS = PKEYS.map(k => ({ ...k }));
+(Save.get('keys', []) || []).forEach((k, i) => { if (PKEYS[i] && k) Object.assign(PKEYS[i], k); });
+function keyName(c) {
+  const m = { ArrowUp: 'Arriba', ArrowDown: 'Abajo', ArrowLeft: 'Izq', ArrowRight: 'Der', Space: 'Espacio', ShiftLeft: 'Shift', ShiftRight: 'Shift D', ControlLeft: 'Ctrl', ControlRight: 'Ctrl D', AltLeft: 'Alt', AltRight: 'Alt D', Enter: 'Enter', Slash: '/', Period: '.', Comma: ',', Semicolon: ';', Quote: "'", BracketLeft: '[', BracketRight: ']' };
+  return m[c] || c.replace(/^Key|^Digit|^Numpad/, '');
+}
+const keysLabel = i => { const k = PKEYS[i]; return `${keyName(k.j)} saltar, ${keyName(k.l)}/${keyName(k.r)} mover, ${keyName(k.f)} acción`; };
 const PCOL = [PAL.sand, PAL.blue, PAL.green];
 const WEAPONS = [
   { n: 'Pistola', need: 0, cd: 18, dmg: 1, pdmg: 25, kind: 'ball' },
@@ -48,6 +55,7 @@ const World = {
   ease(Tp, ph = 0) { return .5 - .5 * Math.cos(2 * Math.PI * (this.gt / Tp + ph)); },
   sawPos(s) { if (s.rad) { const a = 2 * Math.PI * (this.gt / s.T + (s.ph || 0)); return [s.cx + Math.cos(a) * s.rad, s.cy + Math.sin(a) * s.rad]; } const k = this.ease(s.T, s.ph || 0); return [s.x1 + (s.x2 - s.x1) * k, s.y1 + (s.y2 - s.y1) * k]; },
   weaponOf(p) { return WEAPONS.filter(w => p.streak >= w.need).pop(); },
+  dust(p, n) { for (let i = 0; i < n; i++) this.parts.push({ x: p.x + p.w / 2 + (Math.random() - .5) * 20, y: p.y + p.h - 2, vx: (Math.random() - .5) * 2.4 - p.vx * .15, vy: -Math.random() * 1.6, l: 14 + Math.random() * 10, c: PAL.cream, s: 4, dust: true }); },
   burst(x, y, c, n = 10, sp = 6) { if (this.parts.length > 600) return; for (let i = 0; i < n; i++) this.parts.push({ x, y, vx: (Math.random() - .5) * sp, vy: (Math.random() - .8) * sp, l: 24 + Math.random() * 16, c, s: 4 }); },
 
   hurt(p, dmg, by) {
@@ -110,7 +118,7 @@ const World = {
       const maxV = (p.hero === 'campesino' ? 6.4 : 5.2) * (p.speedT > 0 ? 1.35 : 1);
       if (p.stun > 0) { p.stun--; p.vx *= .88; }
       else if (dir) {
-        const turning = Math.sign(p.vx) === -dir && Math.abs(p.vx) > .5;
+        const turning = Math.sign(p.vx) === -dir && Math.abs(p.vx) > .5; if (turning && p.ground && Math.abs(p.vx) > 3) this.dust(p, 2);
         p.vx += dir * (p.ground ? (turning ? 2.4 : 1.4) : .8);
         if (Math.abs(p.vx) > maxV) p.vx = Math.sign(p.vx) * maxV;
         p.face = dir;
@@ -120,16 +128,18 @@ const World = {
       if (pressed[k.j]) p.jbuf = 8; else if (p.jbuf > 0) p.jbuf--;
       const maxJ = (p.hero === 'villa' ? 3 : 2) + (p.jumpT > 0 ? 1 : 0);
       if (p.jbuf > 0 && p.stun <= 0) {
-        if (p.coyote > 0) { p.vy = -13.2; p.jumps = 1; p.coyote = 0; p.jbuf = 0; p.on = null; Sound.sfx('jump'); }
-        else if (p.jumps < maxJ && pressed[k.j]) { p.vy = -11.6; p.jumps = Math.max(p.jumps, 1) + 1; p.jbuf = 0; p.on = null; Sound.sfx('jump'); this.burst(p.x + p.w / 2, p.y + p.h, PAL.paper, 4, 3); }
+        if (p.coyote > 0) { p.vy = -13.2; p.jumps = 1; p.coyote = 0; p.jbuf = 0; p.on = null; p.stretch = 9; this.dust(p, 5); Sound.sfx('jump'); }
+        else if (p.jumps < maxJ && pressed[k.j]) { p.vy = -11.6; p.jumps = Math.max(p.jumps, 1) + 1; p.jbuf = 0; p.on = null; p.stretch = 7; Sound.sfx('jump'); this.dust(p, 4); }
       }
       if (p.padT > 0) p.padT--; else if (!keys[k.j] && p.vy < -4) p.vy *= .6;   // let go early = short hop
       if (pressed[k.f] && p.stun <= 0) { if (battle) { if (p.cd <= 0 && (p.gun || p.ammo > 0)) this.fire(p); } else this.events.interact(p); }
-      p.walk += Math.abs(p.vx) * .11;
+      p.walk += Math.abs(p.vx) * .07; if (p.squash > 0) p.squash--; if (p.stretch > 0) p.stretch--;
       p.vy = Math.min(p.vy + (p.vy < 0 ? .62 : .9), 15); p.x += p.vx;
       if (p.x < 0) { p.x = 0; p.vx = 0; } if (p.x + p.w > L.w) { p.x = L.w - p.w; p.vx = 0; }
-      const prevB = p.y + p.h; p.y += p.vy; p.on = null; p.ground = false;
+      const wasG = p.ground, fallV = p.vy, prevB = p.y + p.h; p.y += p.vy; p.on = null; p.ground = false;
       for (const { r: [px, py, pw], m } of solids) if (p.x + p.w > px && p.x < px + pw && p.vy >= 0 && prevB <= py + 2 + (m ? Math.abs(m.dy) : 0) && p.y + p.h >= py) { p.y = py - p.h; p.vy = 0; p.jumps = 0; p.on = m; p.ground = true; }
+      if (p.ground && !wasG && fallV > 4) { p.squash = 9; this.dust(p, 6); Sound.sfx('step'); }
+      if (p.ground && Math.abs(p.vx) > 4 && this.tick % 9 === 0) this.dust(p, 2);
       for (const pd of L.pads) if (p.x + p.w > pd.x && p.x < pd.x + T && p.y + p.h >= pd.y - 14 && p.y + p.h <= pd.y + 2 && p.vy >= 0) { p.vy = -23; p.jumps = 1; p.on = null; p.padT = 40; pd.t = 12; Sound.sfx('pad'); }
       for (const [sx, sy, sw] of L.spikes) if (p.x + p.w > sx + 4 && p.x < sx + sw - 4 && p.y + p.h > sy - 14 && p.y + p.h <= sy + 4) { this.hurt(p, 30, null); if (!p.dead) { p.vy = -11; p.jumps = 1; p.stun = 12; } }
       if (p.y > H + 40) { this.ko(p, null); continue; }
@@ -159,7 +169,7 @@ const World = {
     for (const pd of L.pads) if (pd.t > 0) pd.t--;
     for (const arr of [L.crates, L.chests, L.guns, L.hearts]) for (const c of arr) if (!c.alive && --c.t <= 0) c.alive = true;
     this.updateMobs(); this.updateShots();
-    for (const q of this.parts) { q.x += q.vx; q.y += q.vy; q.vy += .3; q.l--; } this.parts = this.parts.filter(q => q.l > 0);
+    for (const q of this.parts) { q.x += q.vx; q.y += q.vy; q.vy += q.dust ? .02 : .3; q.l--; } this.parts = this.parts.filter(q => q.l > 0);
     if (this.shake > 0) this.shake *= .85; if (this.shake < .5) this.shake = 0;
   },
   updateMobs() {
