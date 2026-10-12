@@ -23,6 +23,20 @@ addEventListener('keydown', e => {
   if ((e.code === 'Enter' || e.code === 'Space') && onEnter) { e.preventDefault(); onEnter(); }
 });
 addEventListener('mousedown', () => Sound.init());
+// click a character to see their name
+cv.addEventListener('mousedown', e => {
+  if (!World.views || !World.L || ![Explore, Battle].includes(G.scene)) return;
+  const r = cv.getBoundingClientRect(), sx = (e.clientX - r.left) / r.width * W, sy = (e.clientY - r.top) / r.height * H;
+  const v = World.views.find(v => sx >= v.x0 && sx < v.x0 + v.w); if (!v || !v.cam) return;
+  const wx = (sx - v.x0) / v.cam.z + v.cam.x, wy = sy / v.cam.z + v.cam.y;
+  const hits = [
+    ...World.players.filter(p => !p.dead).map(p => ({ o: p, x0: p.x - 8, x1: p.x + p.w + 8, y0: p.y - 16, y1: p.y + p.h, text: `${p.name} (Jugador ${p.i + 1})`, col: p.color })),
+    ...World.L.npcs.map(n => ({ o: { x: n.x - 20, w: 40, y: GY - 70 }, x0: n.x - 24, x1: n.x + 24, y0: GY - 80, y1: GY, text: CAST[n.who] ? CAST[n.who].name : 'Guardia' })),
+    ...World.mobs.filter(m => !m.dead).map(m => ({ o: m, x0: m.x, x1: m.x + m.w, y0: m.y, y1: m.y + m.h, text: m.t === 'b' ? m.name : m.t === 'f' ? 'Zopilote' : 'Soldado federal' })),
+  ];
+  const h = hits.find(h => wx >= h.x0 && wx <= h.x1 && wy >= h.y0 && wy <= h.y1);
+  if (h) World.label = { o: h.o, text: h.text, col: h.col, t: 120 };
+});
 function panel(html, opt = {}) {
   const p = $('panel'); p.innerHTML = html; p.style.top = opt.top || ''; p.style.width = opt.width || '';
   show('panel'); show('dim', !opt.noDim); p.scrollTop = 0; onEnter = opt.enter || null; onKey = opt.key || null; openedAt = Date.now();

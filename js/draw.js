@@ -66,7 +66,6 @@ function drawWorld(g) {
     else if (m.t === 'f') { const s = vulture((tk >> 3) % 2); g.save(); g.translate(m.x + m.w / 2, m.y); if (m.dir < 0) g.scale(-1, 1); g.drawImage(s, -24, 0, 48, 36); g.restore(); }
     else {
       drawChar(g, m.who, m.x + m.w / 2, m.y + m.h, 6.2, m.dir, walkFrame(Math.floor(World.gt * 6)), m.flash ? .5 : 1);
-      txt(g, m.name, m.x + m.w / 2, m.y - 30, 24, PAL.paper, 'center', PAL.ink);
       g.fillStyle = PAL.ink; g.fillRect(m.x - 4, m.y - 22, m.w + 8, 14); g.fillStyle = PAL.red; g.fillRect(m.x, m.y - 18, m.w * Math.max(0, m.hp) / m.hpMax, 6);
       if (m.armorMax) { g.fillStyle = PAL.grey; g.fillRect(m.x, m.y - 12, m.w * m.armor / m.armorMax, 3); }
     }
@@ -89,9 +88,17 @@ function drawWorld(g) {
     const sq = (p.squash || 0) / 9, st = (p.stretch || 0) / 9, sx = 1 + .2 * sq - .12 * st, sy = 1 - .2 * sq + .14 * st;
     const a = p.inv > 0 && (p.inv >> 2) % 2 ? .4 : p.lock > 0 ? .55 : 1;
     drawChar(g, p.hero, p.x + p.w / 2, p.y + p.h, 2.5, p.face, fr, a, sx, sy);
-    txt(g, p.name, p.x + p.w / 2, p.y - 12, 12, p.color, 'center', PAL.ink);
     if (p.lock > 0) { g.fillStyle = PAL.ink; g.fillRect(p.x - 6, p.y - 30, p.w + 12, 8); g.fillStyle = PAL.red; g.fillRect(p.x - 4, p.y - 28, (p.w + 8) * p.lock / p.lockMax, 4); }
     if (p.shieldT > 0) { g.strokeStyle = PAL.sky; g.lineWidth = 3; g.strokeRect(p.x - 8, p.y - 8, p.w + 16, p.h + 12); }
+  }
+  // name tag only when you click someone
+  const lb = World.label;
+  if (lb && lb.t > 0) {
+    lb.t--; const o = lb.o, cx = o.x + (o.w ? o.w / 2 : 0), top = (o.y != null ? o.y : GY - 70) - 18;
+    g.font = FONT(Math.round(13 * 1.75)); const w = g.measureText(lb.text).width + 20;
+    g.globalAlpha = Math.min(1, lb.t / 15);
+    box(g, cx - w / 2, top - 30, w, 28, PAL.slate); txt(g, lb.text, cx, top - 9, 13, lb.col || PAL.cream, 'center');
+    g.fillStyle = PAL.ink; g.fillRect(cx - 4, top - 1, 8, 4); g.globalAlpha = 1;
   }
   for (const q of World.parts) { g.globalAlpha = q.dust ? Math.min(1, q.l / 12) * .8 : 1; g.fillStyle = q.c; g.fillRect(q.x | 0, q.y | 0, q.s, q.s); } g.globalAlpha = 1;
 }
@@ -126,7 +133,7 @@ function renderWorld(split) {
   const views = sp ? ps.map((p, i) => ({ x0: Math.round(i * W / n), w: Math.round(W / n), p })) : [{ x0: 0, w: W, p: null }];
   ctx.imageSmoothingEnabled = false;
   for (const v of views) {
-    const c = v.p ? playerCam(v.p, v.w, L) : sharedCam(L);
+    const c = v.p ? playerCam(v.p, v.w, L) : sharedCam(L); v.cam = c;
     ctx.save(); ctx.beginPath(); ctx.rect(v.x0, 0, v.w, H); ctx.clip(); ctx.translate(v.x0, 0);
     drawBackground(ctx, L.theme, c.x, v.w);
     ctx.save(); if (World.shake) ctx.translate((Math.random() - .5) * World.shake, (Math.random() - .5) * World.shake);
@@ -141,4 +148,5 @@ function renderWorld(split) {
     ctx.restore();
   }
   if (sp) { ctx.fillStyle = PAL.ink; views.slice(1).forEach(v => ctx.fillRect(v.x0 - 3, 0, 6, H)); }
+  World.views = views;
 }
