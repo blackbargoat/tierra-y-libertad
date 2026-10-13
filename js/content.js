@@ -444,3 +444,7 @@ const WHY_WRONG = {
   'Artículo 3': 'El Artículo 3 habla de la educación.', 'Artículo 123': 'El Artículo 123 habla de los trabajadores.', 'Artículo 1': 'El Artículo 1 habla de los derechos.',
   'La mitad': 'Era una tercera parte (1/3).', 'Toda': 'Era una tercera parte (1/3).', 'Nada': 'Era una tercera parte (1/3).',
 };
+
+// icons for each chapter's 3 historical objects (sky, underground, secret room)
+const ICONS = [['hat', 'doc', 'flag'], ['book', 'doc', 'hat'], ['flag', 'doc', 'rifle'], ['medal', 'rifle', 'doc'], ['book', 'flag', 'hat'], ['book', 'doc', 'hat'], ['doc', 'rifle', 'hat'], ['book', 'flag', 'doc']];
+CHAPTERS.forEach((c, i) => c.icons = ICONS[i]);

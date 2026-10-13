@@ -19,8 +19,9 @@ canvas{display:block;image-rendering:pixelated}
 #qbar .meta.low{color:#d95763}
 #qbar .lv{position:absolute;left:14px;top:8px;font-size:32px;color:#959ab1}
 /* messages + objective */
-#msg{position:absolute;left:50%;transform:translateX(-50%);top:110px;font-size:36px;color:#fbf1e3;background:#2b2f3dcc;padding:4px 12px;z-index:3}
-#obj{position:absolute;left:14px;top:14px;background:#434a5f;border:4px solid #2b2f3d;padding:8px 12px;font-size:32px;line-height:1.15;z-index:3;max-width:340px}
+#msg{position:absolute;left:50%;transform:translateX(-50%);top:auto;bottom:100px;font-size:36px;color:#fbf1e3;background:#2b2f3dcc;padding:4px 12px;z-index:3}
+#obj{position:absolute;left:14px;top:14px;background:#434a5f;border:4px solid #2b2f3d;padding:8px 12px;font-size:24px;line-height:1.15;z-index:3;max-width:340px}
+#obj .small{font-size:20px;color:#c2e3e8}
 #obj .done{color:#959ab1;text-decoration:line-through}
 #obj b{color:#f4ac66;font-weight:normal}
 /* subtitles (cutscenes + talking) */
@@ -89,6 +90,7 @@ textarea,input[type=text]{width:100%;font-family:Pixel,monospace;font-size:42px;
 <script src="js/audio.js"></script>
 <script src="js/art.js"></script>
 <script src="js/level.js"></script>
+<script src="js/world.js"></script>
 <script src="js/play.js"></script>
 <script src="js/draw.js"></script>
 <script src="js/game.js"></script>

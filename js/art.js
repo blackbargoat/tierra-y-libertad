@@ -3,6 +3,7 @@
 // ART: Kenney tile sheets (CC0) + pixel characters drawn in code
 // =====================================================================
 const IMG = {};
+const FLOOR_Y_BG = 23 * 36;
 const SHEETS = { tiles: { src: 'assets/tiles.png', ts: 18, cols: 20 }, farm: { src: 'assets/farm.png', ts: 18, cols: 16 }, bgs: { src: 'assets/bgs.png', ts: 24, cols: 8 } };
 function loadArt() {
   return Promise.all(Object.entries(SHEETS).map(([k, s]) => new Promise(res => { const i = new Image(); i.onload = () => { IMG[k] = i; res(); }; i.onerror = res; i.src = s.src; })));
@@ -32,27 +33,27 @@ const THEMES = {
 };
 
 // Parallax background (screen space). camX scrolls the layers.
-function drawBackground(g, theme, camX, vw) {
-  const th = THEMES[theme], S = 144, sc = 0.3;
+function drawBackground(g, theme, camX, vw, camY) {
+  const th = THEMES[theme], S = 144, sc = 0.3, hy = camY == null ? 400 : Math.round(400 - (camY - (FLOOR_Y_BG - 578)) * .45);
   g.fillStyle = th.sky; g.fillRect(0, 0, vw, H);
   if (IMG.bgs) {
     const ox = -((camX * sc) % S + S) % S, n = Math.ceil(vw / S) + 2;
     for (let i = -1; i < n; i++) {
       const x = ox + i * S, k = ((Math.floor((camX * sc) / S) + i) % 2 + 2) % 2;
-      tile(g, 'bgs', th.bg[1] + (k && th.bg[1] % 2 === 0 ? 1 : 0), x, 400, S);
-      tile(g, 'bgs', th.bg[2], x, 400 + S, S);
-      tile(g, 'bgs', th.bg[2], x, 400 + S * 2, S);
+      if (hy > H) continue;
+      tile(g, 'bgs', th.bg[1] + (k && th.bg[1] % 2 === 0 ? 1 : 0), x, hy, S);
+      for (let yy = hy + S; yy < H; yy += S) tile(g, 'bgs', th.bg[2], x, yy, S);
     }
   }
-  if (th.city) drawCity(g, camX * .5, vw);
+  if (th.city && hy < H) drawCity(g, camX * .5, vw, hy);
   if (th.tint) { g.fillStyle = th.tint; g.fillRect(0, 0, vw, H); }
   if (th.stars) { g.fillStyle = PAL.paper; for (let i = 0; i < 60; i++) { const x = ((i * 197 - camX * .05) % vw + vw) % vw, y = (i * 83) % 300; g.fillRect(x | 0, y, 3, 3); } g.fillStyle = PAL.paper; g.fillRect(vw - 200, 80, 48, 48); g.fillStyle = th.sky; g.globalAlpha = .4; g.fillRect(vw - 186, 80, 34, 34); g.globalAlpha = 1; }
 }
-function drawCity(g, ox, vw) {
+function drawCity(g, ox, vw, hy) { const base = (hy || 400) + 160;
   for (let i = -1; i < vw / 90 + 2; i++) {
     const k = Math.floor(ox / 90) + i, x = i * 90 - (ox % 90), h = 120 + (k * 53 % 140);
-    g.fillStyle = k % 3 ? PAL.grey : PAL.slate2; g.fillRect(x, 560 - h, 80, h + 160);
-    g.fillStyle = PAL.sky2; for (let y = 580 - h; y < 540; y += 24) for (let wx = x + 10; wx < x + 70; wx += 20) if ((k + y + wx) % 3) g.fillRect(wx, y, 8, 12);
+    g.fillStyle = k % 3 ? PAL.grey : PAL.slate2; g.fillRect(x, base - h, 80, h + 400);
+    g.fillStyle = PAL.sky2; for (let y = base + 20 - h; y < base - 20; y += 24) for (let wx = x + 10; wx < x + 70; wx += 20) if ((k + y + wx) % 3) g.fillRect(wx, y, 8, 12);
   }
 }
 
@@ -208,3 +209,27 @@ function drawArches(g, x, y) {
   g.fillStyle = '#c9a07a'; g.fillRect(x, y - 150, 300, 150); g.fillStyle = PAL.dirt2; g.fillRect(x - 8, y - 164, 316, 16);
   g.fillStyle = PAL.ink; for (let i = 0; i < 3; i++) { g.fillRect(x + 24 + i * 96, y - 110, 60, 110); g.beginPath(); g.arc(x + 54 + i * 96, y - 110, 30, Math.PI, 0); g.fill(); }
 }
+
+// ---------- item sprites (12 x 12 pixel maps, outlined) ----------
+const ITEM_COL = { g: '#5a627a', G: '#959ab1', b: '#8a5a3a', B: '#5a3a2a', k: '#2b2f3d', w: '#fbf1e3', y: '#f4ac66', o: '#d95763', h: '#e8c070', H: '#9f5a52', r: '#d95763', n: '#2eb082', p: '#fbf1e3', l: '#9f5a52', d: '#d8b060', s: '#434a5f', z: '#2b2a33' };
+const ITEMS = {
+  shotgun: ['............', '............', '............', 'gggggggggg..', 'GGGGGGGGGGgg', '..bbbbbggg..', '.bbbb.......', 'bbbb........', 'bbB.........', '............', '............', '............'],
+  sniper: ['............', '....ss......', '...ssss.....', 'gggggggggggg', 'bbbbbbggg...', 'bbbb........', 'bbb.........', 'bB..........', '............', '............', '............', '............'],
+  rifle: ['............', '............', '............', 'gggggggggggg', 'bbbbbbbb....', 'bbbb........', 'bbb.........', 'bB..........', '............', '............', '............', '............'],
+  bomb: ['........y...', '.......o....', '......kk....', '...kkkkkk...', '..kkkkkkkk..', '.kkwkkkkkkk.', '.kkwkkkkkkk.', '.kkkkkkkkkk.', '.kkkkkkkkkk.', '..kkkkkkkk..', '...kkkkkk...', '............'],
+  boomerang: ['............', '............', '............', '....hhhh....', '...hhhhhh...', '...HHHHHH...', 'hhhhhhhhhhhh', '.hhhhhhhhhh.', '............', '............', '............', '............'],
+  hat: ['............', '............', '....zzzz....', '...zzzzzz...', '...dddddd...', 'zzzzzzzzzzzz', '.zzzzzzzzzz.', '............', '............', '............', '............', '............'],
+  doc: ['.pppppppppp.', '.pllllllllp.', '.pppppppppp.', '.pllllllp.p.', '.pppppppppp.', '.pllllllllp.', '.pppppppppp.', '.plllllp..p.', '.pppppppppp.', '............', '............', '............'],
+  flag: ['k...........', 'knnnnwwwrrr.', 'knnnnwwwrrr.', 'knnnnwdwrrr.', 'knnnnwwwrrr.', 'knnnnwwwrrr.', 'k...........', 'k...........', 'k...........', 'k...........', 'k...........', 'k...........'],
+  book: ['............', '..HHHHHHHH..', '.HppppppppH.', '.HpllllllpH.', '.HppppppppH.', '.HplllllppH.', '.HppppppppH.', '.HHHHHHHHHH.', '............', '............', '............', '............'],
+  medal: ['...rr..rr...', '...rr..rr...', '....rrrr....', '.....rr.....', '....dddd....', '...dddddd...', '...ddyydd...', '...dddddd...', '....dddd....', '............', '............', '............'],
+};
+const itemCache = {};
+function itemSprite(type) {
+  if (itemCache[type]) return itemCache[type];
+  const m = ITEMS[type] || ITEMS.doc, c = document.createElement('canvas'); c.width = 14; c.height = 14; const g = c.getContext('2d');
+  for (const pass of [0, 1]) for (let y = 0; y < 12; y++) for (let x = 0; x < 12; x++) { const k = m[y][x]; if (k === '.') continue;
+    if (pass === 0) { g.fillStyle = '#2b2f3d'; g.fillRect(x, y, 3, 3); } else { g.fillStyle = ITEM_COL[k]; g.fillRect(x + 1, y + 1, 1, 1); } }
+  itemCache[type] = c; return c;
+}
+function drawItem(g, type, x, y, size) { const s = itemSprite(type), z = size || 42; g.drawImage(s, Math.round(x - z / 2), Math.round(y - z / 2), z, z); }

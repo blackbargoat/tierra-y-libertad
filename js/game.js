@@ -106,11 +106,11 @@ const Select = {
     this.render();
   },
   render() {
-    const cols = this.idx.map((k, i) => { const h = HEROES[k]; return `<div class="selcol" style="border-color:${this.ready[i] ? PCOL[i] : PAL.ink}">
-      <div style="color:${PCOL[i]};font-size:22px">Jugador ${i + 1}</div><div class="small">${keysLabel(i)}</div><canvas id="sel${i}" width="160" height="200"></canvas>
-      <div style="font-size:26px;color:#fbf1e3">${h.name}</div><div style="color:#f4ac66;font-size:22px">${h.ab}</div>
+    const cols = this.idx.map((k, i) => { const h = HEROES[k]; return `<div class="selcol" style="border-color:${this.ready[i] ? PAL.cream : PAL.ink}">
+      <div style="font-size:22px;color:#c2e3e8"><span style="display:inline-block;width:14px;height:14px;background:${PCOL[i]};margin-right:8px"></span>Jugador ${i + 1}</div><div class="small">${keysLabel(i)}</div><canvas id="sel${i}" width="160" height="200"></canvas>
+      <div style="font-size:28px;color:#fbf1e3">${h.name}</div><div style="color:#959ab1;font-size:20px;letter-spacing:1px">HABILIDAD: ${h.ab.toUpperCase()}</div>
       <div style="font-size:20px">${h.es}</div><div class="en">${h.en}</div>
-      <div class="small">${this.ready[i] ? 'Listo' : 'Izq / Der: cambiar. Saltar: listo'}</div></div>`; }).join('');
+      <div class="small" style="color:${this.ready[i] ? '#2eb082' : '#959ab1'}">${this.ready[i] ? 'LISTO' : 'Izq / Der: cambiar. Saltar: listo'}</div></div>`; }).join('');
     panel(`<h2>Elige tu personaje</h2><div class="cols">${cols}</div><button class="btn" onclick="Select.go()">Empezar</button>`, { width: G.nP === 3 ? '1000px' : '760px', key: e => this.key(e), enter: () => this.go() });
   },
   key(e) {
@@ -219,43 +219,58 @@ const Cut = {
 // =====================================================================
 const EV = {
   msg, interact(p) { G.scene.interact && G.scene.interact(p); }, note(n, p) { G.scene.note && G.scene.note(n, p); },
-  orb(p, ok, o) { G.scene.orb && G.scene.orb(p, ok, o); }, crate(p, c) { Battle.crate(p, c); }, chest(p, c) { Battle.chest(p, c); },
+  orb(p, ok, o) { G.scene.orb && G.scene.orb(p, ok, o); }, letter(l, p) { G.scene.letter && G.scene.letter(l, p); }, crate(p, c) { Battle.crate(p, c); }, chest(p, c) { Battle.chest(p, c); },
 };
 const Explore = {
   start(ch) {
     G.scene = this; closeAll(); this.ch = ch; this.paused = false; this.doorCd = 0;
     G.players.forEach(p => Object.assign(p, { hp: 100, lock: 0, gun: null }));
-    World.init(buildExplore(ch), 'explore', G.players, EV); World.cam = null;
+    World.init(buildExplore2(ch), 'explore', G.players, EV); World.cam = null;
     Sound.play(ch.id === 7 ? 'sad' : 'calm'); show('obj'); this.obj();
-    msg('Habla con todos (tecla S o flecha abajo) y busca las notas.');
+    msg('Habla con todos y busca los 3 objetos. Sube alto, baja bajo tierra y entra por las puertas (S).');
   },
   obj() {
-    const L = World.L, ppl = L.npcs.filter(n => !n.guard);
-    $('obj').innerHTML = `<b>Capítulo ${this.ch.id}: ${this.ch.title}</b><br>Habla con:<br>${ppl.map(n => `<span class="${n.talked ? 'done' : ''}">${CAST[n.who].name}</span>`).join('<br>')}<br>Notas: ${L.notes.filter(n => n.got).length} / ${L.notes.length}<br>${ppl.every(n => n.talked) ? '<b>Camina a la puerta (a la derecha)</b>' : '<span class="small">Luego camina a la puerta</span>'}`;
+    const L = World.L, ppl = L.npcs.filter(n => !n.guard), got = L.notes.filter(n => n.got).length;
+    const word = [...L.word].map((c, i) => L.letters.find(l => l.i === i && l.got) ? c : '_').join(' ');
+    const ready = ppl.every(n => n.talked) && got === L.notes.length;
+    const talked = ppl.filter(n => n.talked).length, nextObj = L.notes.find(n => !n.got);
+    const hint = talked < ppl.length ? 'habla con ' + CAST[ppl.find(n => !n.talked).who].name : nextObj ? 'busca ' + nextObj.where : 'camina a la puerta (derecha)';
+    $('obj').innerHTML = `<b>Cap. ${this.ch.id} · ${this.ch.title}</b><br>Personas ${talked}/${ppl.length} · Objetos ${got}/${L.notes.length}<br>Palabra: ${word}<br><span class="small">Pista: ${hint}</span>`;
   },
   interact(p) {
-    if (this.paused) return; const L = World.L, cx = p.x + p.w / 2;
-    const n = L.npcs.filter(n => Math.abs(n.x - cx) < 80).sort((a, b) => Math.abs(a.x - cx) - Math.abs(b.x - cx))[0];
-    if (!n && !(L.gate && Math.abs(L.gate.x - cx) < 120)) return;
-    if (!n || n.guard) return this.guard();
+    if (this.paused) return; const L = World.L, cx = p.x + p.w / 2, cy = p.y + p.h;
+    const d = L.doors.find(d => d.to && Math.abs(d.x - cx) < 40 && Math.abs(d.y - cy) < 60);
+    if (d) { // secret door: go through
+      const to = d.to; Sound.sfx('open'); World.burst(cx, p.y + 20, PAL.cream, 10, 5);
+      Object.assign(p, { x: to.x - p.w / 2, y: to.y - p.h - 1, vx: 0, vy: 0, cx: undefined, inv: 30 }); return;
+    }
+    const n = L.npcs.filter(n => Math.abs(n.x - cx) < 80 && Math.abs((n.y || GY) - cy) < 90).sort((a, b) => Math.abs(a.x - cx) - Math.abs(b.x - cx))[0];
+    if (!n) return; if (n.guard) return this.guard();
     this.paused = true; n.face = Math.sign(cx - n.x) || -1;
     speak(n.lines.map(([es, en, vo]) => ({ who: n.who, es, en, vo })), () => { n.talked = true; this.paused = false; this.obj(); clearPressed(); });
   },
   guard() {
-    const ppl = World.L.npcs.filter(n => !n.guard); this.paused = true;
+    const L = World.L, ppl = L.npcs.filter(n => !n.guard); this.paused = true;
     if (!ppl.every(n => n.talked)) { const left = ppl.filter(n => !n.talked).map(n => CAST[n.who].name).join(', '); msg('Te falta hablar con: ' + left); return speak([{ who: 'guardia', es: 'Primero habla con todos.', en: 'Talk to everyone first. Missing: ' + left, vo: 'g2' }], () => { this.paused = false; clearPressed(); }); }
+    const miss = L.notes.filter(n => !n.got);
+    if (miss.length) { msg('Te faltan objetos: ' + miss.map(n => n.where).join(', ')); return speak([{ who: 'guardia', es: 'Busca los objetos históricos primero.', en: 'Find the historical objects first: ' + miss.map(n => n.where).join(', ') }], () => { this.paused = false; clearPressed(); }); }
     speak([{ who: 'guardia', es: 'Para pasar, contesta mis preguntas.', en: 'Answer my questions to pass.', vo: 'g1' }], () => Gate.start(this.ch));
+  },
+  letter(l) {
+    const L = World.L; this.obj();
+    if (L.letters.every(x => x.got)) { G.players.forEach(p => p.score += 100); Sound.sfx('open'); msg(`Palabra completa: ${L.word} = ${WORD_EN[L.word] || ''}`); }
   },
   note(n) {
     this.paused = true; Sound.sfx('open'); const [t, es, en] = n.note;
-    panel(`<div class="lbl">NOTA</div><h2>${t}</h2><div class="big">${wrapWords(es)}</div><div class="en" style="margin-top:8px">${en}</div><button class="btn" onclick="Explore.closeNote()">Seguir (Enter)</button>`, { enter: () => this.closeNote() });
+    panel(`<div class="lbl">OBJETO HISTÓRICO</div><canvas id="noteico" width="96" height="96" style="float:right;image-rendering:pixelated"></canvas><h2>${t}</h2><div class="big">${wrapWords(es)}</div><div class="en" style="margin-top:8px">${en}</div><button class="btn" onclick="Explore.closeNote()">Seguir (Enter)</button>`, { enter: () => this.closeNote() });
+    const c = $('noteico'); if (c && c.getContext) { const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false; drawItem(g2, n.icon || 'doc', 48, 48, 90); }
   },
   closeNote() { closePanel(); this.paused = false; this.obj(); clearPressed(); },
   update() {
     if (this.paused) return; World.update();
-    // walking into the door opens it (or the guard tells you who you still need to talk to)
-    const gx = World.L.gate.x; if (this.doorCd > 0) this.doorCd--;
-    if (!this.doorCd && World.players.some(p => !p.dead && p.x + p.w > gx - 10 && p.x < gx + T + 10)) { this.doorCd = 300; this.guard(); }
+    // walking into the gate opens it (or the guard says what is missing)
+    const gt = World.L.gate; if (this.doorCd > 0) this.doorCd--;
+    if (gt && !this.doorCd && World.players.some(p => !p.dead && p.x + p.w > gt.x - 10 && p.x < gt.x + T + 10 && Math.abs(p.y + p.h - gt.y) < 60)) { this.doorCd = 300; this.guard(); }
   },
   draw() { renderWorld(G.split); },
 };
@@ -313,7 +328,7 @@ const allQs = () => CHAPTERS.flatMap(c => c.qs);
 const Battle = {
   start(ch) {
     this.ch = ch; closeAll(); G.scene = this;
-    const L = buildBattle(ch); World.init(L, 'battle', G.players, EV); World.cam = null;
+    const L = buildBattle2(ch); World.init(L, 'battle', G.players, EV); World.cam = null;
     G.players.forEach(p => Object.assign(p, { hp: 100, ammo: 3, lock: 0, armor: 0, gun: null }));
     let qs = shuf(ch.qs);
     const cj = CONJ_BY_CH[ch.id]; if (cj) for (let i = 0; i < cj[1]; i++) qs.splice(irand(1, qs.length), 0, conjQ(cj[0]));
@@ -325,11 +340,12 @@ const Battle = {
     const go = () => { show('card', false); show('qbar'); this.nextQ(); };
     onEnter = () => { if (!tw.done) tw.skip(); else go(); }; openedAt = Date.now(); setTimeout(() => { if (this.state === 'intro' && G.scene === this) go(); }, 3500);
   },
-  spots() { // 4 answer spots spread out
-    const all = shuf(World.L.orbs), out = [all[0]];
-    for (const s of all) { if (out.length >= 4) break; if (out.every(o => Math.abs(o[0] - s[0]) > 260 || Math.abs(o[1] - s[1]) > 150)) out.push(s); }
+  spots() { // 4 answers spread over the sky, the surface and underground
+    const all = shuf(World.L.orbSpots), out = [];
+    for (const layer of shuf([0, 1, 2])) { const s = all.find(s => s.layer === layer && !out.includes(s)); if (s && out.length < 4) out.push(s); }
+    for (const s of all) { if (out.length >= 4) break; if (!out.includes(s) && out.every(o => Math.hypot(o.x - s.x, o.y - s.y) > 360)) out.push(s); }
     for (const s of all) { if (out.length >= 4) break; if (!out.includes(s)) out.push(s); }
-    return out;
+    return shuf(out).map(s => [s.x, s.y]);
   },
   nextQ() {
     if (this.state === 'intro') this.state = 'read';
@@ -341,7 +357,7 @@ const Battle = {
     $('qlv').textContent = `Capítulo ${this.ch.id} · ${this.qi} / ${this.qs.length}`;
     $('qq').innerHTML = wrapWords(q.q);
     $('qa').innerHTML = order.map((o, k) => `<span class="a"><i style="background:${ANS[k]}">${LET[k]}</i>${wrapWords(q.o[o])}</span>`).join('');
-    this.timer = 45 * FPS; this.read();
+    this.timer = 60 * FPS; this.read();
   },
   read() {
     this.state = 'read'; const q = this.cur;
