@@ -3,9 +3,9 @@
 // GAMEPLAY: players, physics, enemies, shots, items
 // =====================================================================
 const PKEYS = [
-  { l: 'KeyA', r: 'KeyD', j: 'KeyW', f: 'KeyS', label: 'W A S D' },
-  { l: 'ArrowLeft', r: 'ArrowRight', j: 'ArrowUp', f: 'ArrowDown', label: 'Flechas' },
-  { l: 'KeyJ', r: 'KeyL', j: 'KeyI', f: 'KeyK', label: 'I J K L' },
+  { l: 'KeyA', r: 'KeyD', j: 'KeyW', f: 'KeyS', sl: 'KeyQ', sr: 'KeyE', su: 'KeyR', label: 'W A S D' },
+  { l: 'ArrowLeft', r: 'ArrowRight', j: 'ArrowUp', f: 'ArrowDown', sl: 'Comma', sr: 'Period', su: 'Slash', label: 'Flechas' },
+  { l: 'KeyJ', r: 'KeyL', j: 'KeyI', f: 'KeyK', sl: 'KeyU', sr: 'KeyO', su: 'KeyP', label: 'I J K L' },
 ];
 const DEFAULT_KEYS = PKEYS.map(k => ({ ...k }));
 (Save.get('keys', []) || []).forEach((k, i) => { if (PKEYS[i] && k) Object.assign(PKEYS[i], k); });
@@ -26,6 +26,9 @@ const GUNS = {
   boomerang: { n: 'Sombrero', ammo: 10, cd: 30, dmg: 2, pdmg: 22, kind: 'boom', col: '#e8c070' },
   bomb: { n: 'Bombas', ammo: 6, cd: 34, dmg: 4, pdmg: 40, kind: 'bomb', col: PAL.ink },
   sniper: { n: 'Rifle', ammo: 5, cd: 45, dmg: 6, pdmg: 50, kind: 'snipe', col: PAL.blue },
+  machinegun: { n: 'Ametralladora', ammo: 70, cd: 6, dmg: 1, pdmg: 9, kind: 'mg', col: PAL.grey },
+  dynamite: { n: 'Dinamita', ammo: 5, cd: 40, dmg: 7, pdmg: 55, kind: 'bomb', R: 175, col: PAL.red },
+  machete: { n: 'Machete', ammo: 40, cd: 20, dmg: 4, pdmg: 35, kind: 'melee', col: PAL.grey },
 };
 const POWERS = [
   { n: 'Botas rápidas', f: p => p.speedT = 15 * FPS }, { n: 'Súper salto', f: p => p.jumpT = 15 * FPS },
@@ -60,7 +63,7 @@ const World = {
   burst(x, y, c, n = 10, sp = 6) { if (this.parts.length > 600) return; for (let i = 0; i < n; i++) this.parts.push({ x, y, vx: (Math.random() - .5) * sp, vy: (Math.random() - .8) * sp, l: 24 + Math.random() * 16, c, s: 4 }); },
 
   hurt(p, dmg, by) {
-    if (p.inv > 0 || p.dead) return;
+    if (p.inv > 0 || p.dead || p.jail) return;
     if (p.shieldT > 0) { p.inv = 20; return; }
     if (p.hero === 'diaz') dmg = Math.ceil(dmg / 2);
     if (p.armor > 0) { const a = Math.min(p.armor, dmg); p.armor -= a; dmg -= a; }
@@ -68,11 +71,13 @@ const World = {
     if (p.hp <= 0) this.ko(p, by); else p.inv = 30;
   },
   ko(p, by) {
-    if (p.dead) return; this.burst(p.x + p.w / 2, Math.min(p.y + p.h / 2, H - 20), p.color, 30, 10); this.shake = 10; Sound.sfx('ko');
+    if (p.dead || p.jail) return;
+    if (this.events.captured && this.events.captured(p)) return; this.burst(p.x + p.w / 2, Math.min(p.y + p.h / 2, H - 20), p.color, 30, 10); this.shake = 10; Sound.sfx('ko');
     if (by) { by.score += 150; by.ko++; this.events.msg(`${by.name} derrotó a ${p.name}`); } else { p.score = Math.max(0, p.score - 50); this.events.msg(`${p.name} se cayó`); }
     Object.assign(p, { dead: 3 * FPS, vx: 0, vy: 0, stun: 0, on: null });
   },
   killMob(m, by) {
+    if (m.t === 's' || m.t === 'g') { m.hp = 0; m.dead = -1; this.burst(m.x + m.w / 2, m.y + m.h / 2, m.t === 'g' ? PAL.sand : PAL.maroon, m.t === 'g' ? 70 : 14, m.t === 'g' ? 16 : 7); Sound.sfx(m.t === 'g' ? 'boom' : 'hit'); if (by) { by.score += m.t === 'g' ? 500 : 40; by.ko++; } if (m.t === 'g') this.shake = 25; return; }
     m.hp = 0; m.dead = m.t === 'b' ? -1 : 8 * FPS; this.burst(m.x + m.w / 2, m.y + m.h / 2, m.t === 'b' ? PAL.sand : PAL.maroon, m.t === 'b' ? 60 : 16, m.t === 'b' ? 14 : 8);
     if (by) by.score += m.t === 'b' ? 300 : 30; Sound.sfx(m.t === 'b' ? 'boom' : 'hit');
     if (m.t === 'b') this.events.msg(`${by ? by.name : 'Alguien'} venció a ${m.name}`);
@@ -84,24 +89,30 @@ const World = {
   },
   explode(s) {
     this.burst(s.x, s.y, PAL.sand, 30, 12); this.burst(s.x, s.y, PAL.ink, 14, 8); this.shake = Math.max(this.shake, 10); Sound.sfx('boom');
-    const R = 110, mul = s.o.megaT > 0 || s.o.hero === 'carranza' ? 2 : 1;
+    const R = s.w.R || 110, mul = s.o.megaT > 0 || s.o.hero === 'carranza' ? 2 : 1;
     for (const m of this.mobs) if (!m.dead && Math.hypot(m.x + m.w / 2 - s.x, m.y + m.h / 2 - s.y) < R + m.w / 2) this.hitMob(m, s.w.dmg * mul, s.o);
     for (const p of this.players) if (p !== s.o && !p.dead && Math.hypot(p.x + p.w / 2 - s.x, p.y + p.h / 2 - s.y) < R) { p.vx += Math.sign(p.x - s.x || 1) * 10; p.vy = -10; this.hurt(p, s.w.pdmg * mul, s.o); }
   },
-  fire(p) {
-    const x = p.x + p.w / 2 + p.face * 20, y = p.y + 24, f = p.face; let w;
+  // aim: 'face' (default), 'L', 'R' or 'U' (shoot up)
+  fire(p, aim) {
+    const fx = aim === 'U' ? 0 : aim === 'L' ? -1 : aim === 'R' ? 1 : p.face, fy = aim === 'U' ? -1 : 0;
+    if (fx) p.face = fx;
+    const x = p.x + p.w / 2 + fx * 20, y = p.y + (fy ? 4 : 24); let w;
     if (p.gun) { w = p.gun; p.gun.ammo--; if (p.gun.ammo <= 0) p.gun = null; }
     else { if (p.ammo <= 0) return; p.ammo--; w = this.weaponOf(p); }
-    p.cd = w.cd * (p.hero === 'huerta' ? .5 : 1); Sound.sfx('shoot');
+    p.cd = w.cd * (p.hero === 'huerta' ? .5 : 1); Sound.sfx(w.kind === 'mg' ? 'mg' : 'shoot');
     const S = o => this.shots.push({ x, y, vx: 0, vy: 0, o: p, l: 90, w, ...o });
-    if (w.kind === 'ball') S({ vx: f * 13 });
-    else if (w.kind === 'triple') [-2.5, 0, 2.5].forEach(vy => S({ vx: f * 13, vy }));
-    else if (w.kind === 'laser') S({ vx: f * 26, l: 60, pierce: new Set(), laser: true });
-    else if (w.kind === 'rocket') { S({ y: y - 8, vx: f * 7, vy: -2, l: 200, rocket: true }); S({ y: y + 8, vx: f * 7, vy: 2, l: 200, rocket: true }); }
-    else if (w.kind === 'shotgun') for (let i = 0; i < 5; i++) S({ vx: f * (12 + Math.random() * 2), vy: (i - 2) * 1.6, l: 24, pellet: true });
-    else if (w.kind === 'boom') S({ vx: f * 13, dir: f, l: 140, boom: true, pierce: new Set() });
-    else if (w.kind === 'bomb') S({ vx: f * 7 + p.vx * .5, vy: -9, l: 180, bomb: true });
-    else if (w.kind === 'snipe') S({ vx: f * 36, l: 50, snipe: true, pierce: new Set() });
+    const rot = (a, sp) => { const c = Math.cos(a), s2 = Math.sin(a); return { vx: (fx * c - fy * s2) * sp, vy: (fx * s2 + fy * c) * sp }; };
+    if (w.kind === 'ball') S(rot(0, 13));
+    else if (w.kind === 'triple') [-.2, 0, .2].forEach(a => S(rot(a, 13)));
+    else if (w.kind === 'laser') S({ ...rot(0, 26), l: 60, pierce: new Set(), laser: true });
+    else if (w.kind === 'rocket') { S({ ...rot(-.25, 7), l: 200, rocket: true }); S({ ...rot(.25, 7), l: 200, rocket: true }); }
+    else if (w.kind === 'shotgun') for (let i = 0; i < 5; i++) S({ ...rot((i - 2) * .13, 12 + Math.random() * 2), l: 24, pellet: true });
+    else if (w.kind === 'mg') S({ ...rot((Math.random() - .5) * .12, 15), l: 60, pellet: true });
+    else if (w.kind === 'boom') S({ ...rot(0, 13), ax: -fx * .42, ay: -fy * .42, l: 140, boom: true, pierce: new Set() });
+    else if (w.kind === 'bomb') S(fy ? { vx: p.vx * .3, vy: -14, l: 180, bomb: true } : { vx: fx * 7 + p.vx * .5, vy: -9, l: 180, bomb: true });
+    else if (w.kind === 'snipe') S({ ...rot(0, 36), l: 50, snipe: true, pierce: new Set() });
+    else if (w.kind === 'melee') { S({ x: x + fx * 18, y: y + fy * 30, vx: fx * 2, vy: fy * 2, l: 9, melee: true, pierce: new Set() }); this.burst(x + fx * 30, y + fy * 30, PAL.cream, 5, 4); }
   },
 
   // move a body through the tile grid: solid walls/ceilings, one-way platforms, moving platforms
@@ -125,6 +136,7 @@ const World = {
   updateAllies() {
     const L = this.L;
     for (const a of this.allies) {
+      if (a.dead < 0) continue;
       if (a.dead > 0) { if (--a.dead === 0) Object.assign(a, { x: L.spawns[1][0], y: L.spawns[1][1], hp: 60, vx: 0, vy: 0 }); continue; }
       if (a.inv > 0) a.inv--; if (a.cd > 0) a.cd--;
       const ax = a.x + a.w / 2, ay = a.y + a.h / 2;
@@ -139,12 +151,12 @@ const World = {
       if (goal && a.ground && (a.wall || wasWall)) { a.vy = -13; }
       a.walk += Math.abs(a.vx) * .07;
       for (const m of this.mobs) if (!m.dead && a.inv <= 0 && a.x < m.x + m.w && a.x + a.w > m.x && a.y < m.y + m.h && a.y + a.h > m.y) { a.hp -= 15; a.inv = 40; a.vx = Math.sign(a.x - m.x || 1) * 6; a.vy = -6; }
-      if (a.hp <= 0 || a.y > L.h) { this.burst(ax, ay, PAL.cream, 14, 8); a.dead = 10 * FPS; }
+      if (a.hp <= 0 || a.y > L.h) { this.burst(ax, ay, PAL.cream, 14, 8); a.dead = a.perm ? -1 : 10 * FPS; }
     }
   },
   update() {
-    this.tick++; this.gt += 1 / FPS; const L = this.L, battle = this.mode === 'battle';
-    for (const m of L.movers) { const k = this.ease(m.T), nx = m.x + m.ax * k, ny = m.y + m.ay * k; m.dx = m.cx === undefined ? 0 : nx - m.cx; m.dy = m.cy === undefined ? 0 : ny - m.cy; m.cx = nx; m.cy = ny; }
+    this.tick++; this.gt += 1 / FPS; const L = this.L, battle = this.mode === 'battle' || this.mode === 'master';
+    for (const m of L.movers) { if (m.pulse) { m.w = Math.round(m.bw * (.3 + .7 * (.5 + .5 * Math.sin(this.gt * m.ps + m.ph)))); } const k = this.ease(m.T), nx = m.x + m.ax * k + (m.pulse ? (m.bw - m.w) / 2 : 0), ny = m.y + m.ay * k; m.dx = m.cx === undefined ? 0 : nx - m.cx; m.dy = m.cy === undefined ? 0 : ny - m.cy; m.cx = nx; m.cy = ny; }
     for (const p of this.players) {
       const k = p.keys;
       if (p.dead > 0) { if (--p.dead === 0) { this.spawn(p, this.players.indexOf(p)); p.hp = 100; p.inv = 120; } continue; }
@@ -152,7 +164,7 @@ const World = {
       if (p.inv > 0) p.inv--; if (p.cd > 0) p.cd--; if (p.lock > 0) p.lock--;
       for (const b of ['speedT', 'jumpT', 'megaT', 'shieldT']) if (p[b] > 0) p[b]--;
       // ---- movement: snappy run, coyote time, jump buffer, variable jump height ----
-      const dir = p.stun > 0 ? 0 : (keys[k.r] ? 1 : 0) - (keys[k.l] ? 1 : 0);
+      const dir = p.stun > 0 || p.turret ? 0 : (keys[k.r] ? 1 : 0) - (keys[k.l] ? 1 : 0);
       const maxV = (p.hero === 'campesino' ? 6.4 : 5.2) * (p.speedT > 0 ? 1.35 : 1);
       if (p.stun > 0) { p.stun--; p.vx *= .88; }
       else if (dir) {
@@ -170,7 +182,12 @@ const World = {
         else if (p.jumps < maxJ && pressed[k.j]) { p.vy = -11.6; p.jumps = Math.max(p.jumps, 1) + 1; p.jbuf = 0; p.on = null; p.stretch = 7; Sound.sfx('jump'); this.dust(p, 4); }
       }
       if (p.padT > 0) p.padT--; else if (!keys[k.j] && p.vy < -4) p.vy *= .6;   // let go early = short hop
-      if (pressed[k.f] && p.stun <= 0) { if (battle) { if (p.cd <= 0 && (p.gun || p.ammo > 0)) this.fire(p); } else this.events.interact(p); }
+      const can = p.stun <= 0 && !p.jail && !p.turret;
+      if (can && battle) {
+        if (pressed[k.f] && this.events.use && this.events.use(p)) {}  // mount a gun / open a cage / free prisoners
+        else { const aim = pressed[k.su] || (keys[k.su] && p.gun && p.gun.kind === 'mg') ? 'U' : pressed[k.sl] || (keys[k.sl] && p.gun && p.gun.kind === 'mg') ? 'L' : pressed[k.sr] || (keys[k.sr] && p.gun && p.gun.kind === 'mg') ? 'R' : pressed[k.f] || (keys[k.f] && p.gun && p.gun.kind === 'mg') ? 'face' : null;
+          if (aim && p.cd <= 0 && (p.gun || p.ammo > 0)) this.fire(p, aim); }
+      } else if (pressed[k.f] && p.stun <= 0 && !battle) this.events.interact(p);
       p.walk += Math.abs(p.vx) * .07; if (p.squash > 0) p.squash--; if (p.stretch > 0) p.stretch--;
       p.vy = Math.min(p.vy + (p.vy < 0 ? .62 : .9), 15);
       const wasG = p.ground, fallV = p.vy, prevB = p.y + p.h; this.moveBody(p, L);
@@ -183,8 +200,8 @@ const World = {
       if (p.dead) continue;
       for (const m of this.mobs) {
         if (m.dead || !(p.x < m.x + m.w && p.x + p.w > m.x && p.y < m.y + m.h && p.y + p.h > m.y)) continue;
-        if (m.t !== 'b' && p.vy > 0 && prevB <= m.y + 12) { this.killMob(m, p); p.vy = -11; p.jumps = 1; continue; }
-        this.hurt(p, m.t === 'b' ? 30 : 20, null); if (!p.dead) { p.vx = Math.sign(p.x - m.x || 1) * 9; p.vy = -8; p.stun = 16; }
+        if (m.t !== 'b' && m.t !== 'g' && p.vy > 0 && prevB <= m.y + 12) { if (m.t === 's' && m.hp > 1) { m.hp--; m.flash = 8; } else this.killMob(m, p); p.vy = -11; p.jumps = 1; continue; }
+        if (p.jail) continue; this.hurt(p, m.t === 'b' || m.t === 'g' ? 30 : 20, null); if (!p.dead) { p.vx = Math.sign(p.x - m.x || 1) * 9; p.vy = -8; p.stun = 16; }
       }
       if (p.dead) continue;
       const near = (o, r) => Math.hypot(p.x + p.w / 2 - o.x, p.y + p.h / 2 - o.y) < r;
@@ -212,6 +229,7 @@ const World = {
   updateMobs() {
     const alive = this.players.filter(p => !p.dead);
     for (const m of this.mobs) {
+      if ((m.t === 's' || m.t === 'g') && !m.dead) { this.events.ai && this.events.ai(m); continue; }
       if (m.flash > 0) m.flash--;
       if (m.dead) { if (m.dead > 0 && --m.dead === 0) Object.assign(m, this.mkMob(m, this.mobs.indexOf(m))); continue; }
       if (m.t === 'w') { m.x += m.s * m.dir; if (m.x < m.min || m.x + m.w > m.max) m.dir *= -1; m.y = m.yy ?? (m.yy = m.y - m.h); m.anim += .15; }
@@ -229,20 +247,20 @@ const World = {
   },
   updateShots() {
     for (const s of this.shots) {
-      if (s.rocket) { const tg = this.mobs.filter(m => !m.dead).concat(this.players.filter(p => p !== s.o && !p.dead)).sort((a, b) => (a.t === 'b' ? -1e6 : 0) + Math.hypot(a.x - s.x, a.y - s.y) - ((b.t === 'b' ? -1e6 : 0) + Math.hypot(b.x - s.x, b.y - s.y)))[0];
+      if (s.rocket) { const tg = this.mobs.filter(m => !m.dead).concat(this.players.filter(p => p !== s.o && !p.dead)).sort((a, b) => ((a.t === 'b' || a.t === 'g') ? -1e6 : 0) + Math.hypot(a.x - s.x, a.y - s.y) - (((b.t === 'b' || b.t === 'g') ? -1e6 : 0) + Math.hypot(b.x - s.x, b.y - s.y)))[0];
         if (tg) { const ang = Math.atan2(tg.y + tg.h / 2 - s.y, tg.x + tg.w / 2 - s.x); s.vx += Math.cos(ang) * .7; s.vy += Math.sin(ang) * .7; const sp = Math.hypot(s.vx, s.vy); if (sp > 9) { s.vx *= 9 / sp; s.vy *= 9 / sp; } } }
-      if (s.boom) { s.vx -= s.dir * .42; if (s.l < 120) { if (Math.hypot(s.o.x - s.x, s.o.y - s.y) < 40) s.l = 0; s.vy = (s.o.y + 20 - s.y) * .05; } }
+      if (s.boom) { s.vx += s.ax; s.vy += s.ay; if (s.l < 120) { if (Math.hypot(s.o.x - s.x, s.o.y - s.y) < 40) s.l = 0; s.vx += (s.o.x - s.x) * .004; s.vy += (s.o.y + 20 - s.y) * .004; } }
       if (s.bomb) s.vy += .45;
       s.x += s.vx; s.y += s.vy; s.l--;
       if (s.bomb && s.l <= 0) { this.explode(s); continue; }
       const mul = s.o && (s.o.megaT > 0 || s.o.hero === 'carranza') ? 2 : 1;
-      if (s.enemy && this.allies) for (const a of this.allies) if (!a.dead && a.inv <= 0 && s.l > 0 && s.x > a.x && s.x < a.x + a.w && s.y > a.y && s.y < a.y + a.h) { a.hp -= 15; a.inv = 30; s.l = 0; }
+      if (s.enemy && this.allies) for (const a of this.allies) if (!a.dead && a.inv <= 0 && s.l > 0 && s.x > a.x && s.x < a.x + a.w && s.y > a.y && s.y < a.y + a.h) { a.hp -= Math.round((s.dmg || 18) * .8); a.inv = 20; if (!s.wave) s.l = 0; }
       for (const p of this.players) {
         if (s.ally || p === s.o || p.dead || p.inv > 0 || s.l <= 0) continue;
         if (s.x > p.x - 6 && s.x < p.x + p.w + 6 && s.y > p.y - 6 && s.y < p.y + p.h + 6) {
           if (s.bomb) { this.explode(s); s.l = 0; break; }
           if (s.pierce) { if (s.pierce.has(p)) continue; s.pierce.add(p); } else s.l = 0;
-          p.vx += Math.sign(s.vx || 1) * 8; p.vy = -7; p.stun = Math.max(p.stun, 18); this.hurt(p, s.enemy ? 20 : s.w.pdmg * mul, s.o);
+          p.vx += Math.sign(s.vx || 1) * 8; p.vy = -7; p.stun = Math.max(p.stun, 18); this.hurt(p, s.enemy ? (s.dmg || 20) : s.w.pdmg * mul, s.o);
         }
       }
       if (!s.enemy) for (const m of this.mobs) {

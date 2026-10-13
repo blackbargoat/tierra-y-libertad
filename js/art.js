@@ -222,6 +222,9 @@ const ITEMS = {
   doc: ['.pppppppppp.', '.pllllllllp.', '.pppppppppp.', '.pllllllp.p.', '.pppppppppp.', '.pllllllllp.', '.pppppppppp.', '.plllllp..p.', '.pppppppppp.', '............', '............', '............'],
   flag: ['k...........', 'knnnnwwwrrr.', 'knnnnwwwrrr.', 'knnnnwdwrrr.', 'knnnnwwwrrr.', 'knnnnwwwrrr.', 'k...........', 'k...........', 'k...........', 'k...........', 'k...........', 'k...........'],
   book: ['............', '..HHHHHHHH..', '.HppppppppH.', '.HpllllllpH.', '.HppppppppH.', '.HplllllppH.', '.HppppppppH.', '.HHHHHHHHHH.', '............', '............', '............', '............'],
+  machinegun: ['............', '..kk........', 'gggggggggggg', 'GGGGGGGGGGGG', 'gggggggggg..', '.bbbbk.k....', 'bbbb..kk....', 'bbb.........', 'bB..........', '............', '............', '............'],
+  dynamite: ['.........y..', '........o...', '.......k....', '..rrrrrr....', '.rrrrrrrr...', '.rrrrrrrr...', '.rrrrrrrr...', '..rrrrrr....', '..rrrrrr....', '..rrrrrr....', '...rrrr.....', '............'],
+  machete: ['..........GG', '.........GGG', '........GGG.', '.......GGG..', '......GGG...', '.....GGG....', '....GGG.....', '..bbG.......', '.bbb........', 'bbb.........', 'bb..........', '............'],
   medal: ['...rr..rr...', '...rr..rr...', '....rrrr....', '.....rr.....', '....dddd....', '...dddddd...', '...ddyydd...', '...dddddd...', '....dddd....', '............', '............', '............'],
 };
 const itemCache = {};

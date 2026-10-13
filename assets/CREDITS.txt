@@ -1,5 +1,5 @@
 Art: "Pixel Platformer" and "Pixel Platformer Farm Expansion" by Kenney (www.kenney.nl), CC0 1.0 public domain.
 Mexico outline: github.com/johan/world.geo.json (Natural Earth, public domain).
-Music (CC0, opengameart.org): "Desert Calmness and Fighting" by dizzy-crow, "Desert Settlement" by vitalezzz, "Desert Overworld" by karatestudios.
+Music (CC0, opengameart.org): "Desert Calmness and Fighting" by dizzy-crow, "Desert Settlement" by vitalezzz, "Desert Overworld" by karatestudios, "Battle Theme A" by cynicmusic, "Battle RPG Theme" by CleytonRX (cleytonkauffman).
 Spanish voices: generated with Higgsfield (ElevenLabs).
 Character sprites and sound effects are generated in code.

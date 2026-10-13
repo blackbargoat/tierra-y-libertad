@@ -74,6 +74,13 @@ const Sound = {
     else if (n === 'step') this.noise(t, .03, .04, 2500, F);
     else if (n === 'select') N(76, .05, 'square', .06);
     else if (n === 'ko') [60, 55, 50, 45].forEach((m, i) => N(m, .12, 'square', .1, i * .08));
+    else if (n === 'mg') { this.noise(t, .05, .12, 2500, F); N(40, .04, 'square', .05); }
+    else if (n === 'cannon') { this.noise(t, .5, .5, 60, F); N(30, .4, 'sawtooth', .15); }
+    else if (n === 'recruit') [67, 72, 76, 79, 84].forEach((m, i) => N(m, .12, 'triangle', .12, i * .06));
+    else if (n === 'jail') { N(40, .5, 'square', .12); N(35, .6, 'square', .1, .2); }
+    else if (n === 'morph') [48, 55, 60, 67, 72].forEach((m, i) => N(m, .18, 'sawtooth', .06, i * .09));
+    else if (n === 'stomp') { this.noise(t, .35, .5, 40, F); N(28, .3, 'square', .14); }
+    else if (n === 'horn') { N(55, .5, 'sawtooth', .1); N(62, .7, 'sawtooth', .1, .3); }
   },
   // ---- voice ----
   voice(id, onend) {
@@ -88,7 +95,7 @@ const Sound = {
 };
 
 // Songs: each one is a small pattern player. chords are root notes; play() schedules one step.
-const TRACKS = { title: 'overworld.mp3', story: 'negev_calm.m4a', calm: 'calm_town.mp3', battle: 'negev_fight.m4a', boss: 'negev_fight.m4a' };
+const TRACKS = { war: 'war.mp3', warboss: 'war_boss.mp3', title: 'overworld.mp3', story: 'negev_calm.m4a', calm: 'calm_town.mp3', battle: 'negev_fight.m4a', boss: 'negev_fight.m4a' };
 const MAJ = [0, 4, 7], MIN = [0, 3, 7];
 const SONGS = {
   // calm 3/4 waltz with a guitar-like pluck (explore parts)

@@ -138,7 +138,7 @@ const Chapters = {
     G.scene = Title; closeAll(); Sound.play('title');
     const un = CHAPTERS.length; // TESTING: all chapters unlocked (was Save.get('unlocked', 1))
     const rows = CHAPTERS.map(ch => `<div class="chap ${ch.id > un ? 'lock' : ''}" onclick="${ch.id <= un ? `Chapters.play(${ch.id})` : ''}"><span>Capítulo ${ch.id}: ${ch.title}</span><span style="color:#959ab1">${ch.years}</span></div>`).join('');
-    panel(`<h2>Capítulos</h2>${rows}<button class="btn" onclick="Chapters.play(${Math.min(un, CHAPTERS.length)})">Continuar: Capítulo ${Math.min(un, CHAPTERS.length)}</button><button class="btn alt" onclick="Title.start()">Volver</button>`, { enter: () => this.play(Math.min(un, CHAPTERS.length)) });
+    panel(`<h2>Capítulos</h2>${rows}<div class="chap" style="background:#6f3e43" onclick="MasterMenu.open()"><span>Nivel Maestro: La Revolución</span><span style="color:#f4cca1">Normal / Imposible</span></div><button class="btn" onclick="Chapters.play(${Math.min(un, CHAPTERS.length)})">Continuar: Capítulo ${Math.min(un, CHAPTERS.length)}</button><button class="btn alt" onclick="Title.start()">Volver</button>`, { enter: () => this.play(Math.min(un, CHAPTERS.length)) });
   },
   play(id) { G.ch = CHAPTERS[id - 1]; closeAll(); Cut.start(G.ch.cut, () => Explore.start(G.ch), true); },
 };
@@ -470,7 +470,7 @@ const Settings = {
   close() { this.isOpen = false; this.capture = null; show('settings', false); if (Sound.vo) Sound.vo.play().catch(() => {}); for (const k in keys) keys[k] = false; clearPressed(); },
   render() {
     const sl = (k, label) => `<div class="srow"><span>${label}</span><input type="range" min="0" max="100" value="${Math.round(Sound.vol[k] * 100)}" oninput="Sound.vol.${k}=this.value/100;Sound.applyVol();this.nextElementSibling.textContent=this.value"><b>${Math.round(Sound.vol[k] * 100)}</b></div>`;
-    const acts = [['j', 'Saltar'], ['l', 'Izquierda'], ['r', 'Derecha'], ['f', 'Disparar / hablar']];
+    const acts = [['j', 'Saltar'], ['l', 'Izq'], ['r', 'Der'], ['f', 'Acción'], ['sl', 'Tiro izq'], ['sr', 'Tiro der'], ['su', 'Tiro arriba']];
     const used = {}; PKEYS.forEach(k => acts.forEach(([a]) => used[k[a]] = (used[k[a]] || 0) + 1));
     const rows = PKEYS.map((k, i) => `<tr><td style="color:${PCOL[i]}">Jugador ${i + 1}</td>${acts.map(([a]) => { const cap = this.capture && this.capture[0] === i && this.capture[1] === a; return `<td><button class="kb${used[k[a]] > 1 ? ' dup' : ''}" onclick="Settings.capture=[${i},'${a}'];Settings.render()">${cap ? '...' : keyName(k[a])}</button></td>`; }).join('')}</tr>`).join('');
     const inCut = G.scene === Cut;
@@ -485,7 +485,7 @@ const Settings = {
   },
   setKey(code) {
     const [i, a] = this.capture; this.capture = null;
-    if (code !== 'Escape') { PKEYS[i][a] = code; Save.set('keys', PKEYS.map(({ l, r, j, f }) => ({ l, r, j, f }))); Sound.sfx('select'); }
+    if (code !== 'Escape') { PKEYS[i][a] = code; Save.set('keys', PKEYS.map(({ l, r, j, f, sl, sr, su }) => ({ l, r, j, f, sl, sr, su }))); Sound.sfx('select'); }
     this.render();
   },
   resetKeys() { PKEYS.forEach((k, i) => Object.assign(k, DEFAULT_KEYS[i])); Save.set('keys', []); this.render(); },

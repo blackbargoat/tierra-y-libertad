@@ -26,7 +26,12 @@ function drawGrid(g, L, c, vw) {
     if (open && r < 26) { const l = isS(cc - 1, r) && !isS(cc - 1, r - 1), rr = isS(cc + 1, r) && !isS(cc + 1, r - 1); tile(g, gs.sheet, !l && !rr ? gs.top[3] : !l ? gs.top[0] : !rr ? gs.top[2] : gs.top[1], x, y); }
     else { tile(g, gs.sheet, gs.fill, x, y); if (open) { g.fillStyle = PAL.dirt2; g.fillRect(x, y, T, 4); } }
     if (t === TL.spike) tile(g, 'tiles', 68, x, y - T + 4);
+    if (World.morphWarn && (World.tick >> 3) % 2 && L.morph && r >= 3 && r < FLOOR_ROW && cc >= L.morph.c0 * CW && cc < (L.morph.c1 + 1) * CW) { g.fillStyle = 'rgba(217,87,99,.55)'; g.fillRect(x, y, T, T); }
   }
+}
+function drawPlat(g, x, y, w, moving, L) {
+  const n = Math.max(1, Math.round(w / T));
+  for (let i = 0; i < n; i++) tile(g, 'tiles', 146, x + i * (w / n), y, Math.ceil(w / n) + 1);
 }
 function drawSaw(g, s) {
   const [x, y] = World.sawPos(s), a = World.tick * .25;
@@ -63,6 +68,8 @@ function drawWorld(g, c, vw) {
   World.orbs.forEach((o, k) => { if (o.alive) drawOrb(g, o, k); });
   for (const m of World.mobs) {
     if (m.dead) continue;
+    if (m.t === 's') { drawChar(g, 'federal', m.x + m.w / 2, m.y + m.h, 2.5, m.face, !m.ground ? 4 : Math.abs(m.vx) > .4 ? walkFrame(Math.floor(m.walk || 0)) : 0, m.flash ? .5 : 1); continue; }
+    if (m.t === 'g') { drawChar(g, m.who, m.x + m.w / 2, m.y + m.h, 9, m.face, !m.ground ? 4 : Math.abs(m.vx) > .3 ? walkFrame(Math.floor(m.walk || 0)) : 0, m.flash ? .55 : 1); g.fillStyle = PAL.ink; g.fillRect(m.x - 14, m.y - 36, m.w + 28, 16); g.fillStyle = PAL.red; g.fillRect(m.x - 10, m.y - 32, (m.w + 20) * Math.max(0, m.hp) / m.hpMax, 8); if (m.armorMax) { g.fillStyle = PAL.grey; g.fillRect(m.x - 10, m.y - 24, (m.w + 20) * m.armor / m.armorMax, 3); } continue; }
     if (m.t === 'w') drawChar(g, 'federal', m.x + m.w / 2, m.y + m.h, 2.4, m.dir, walkFrame(Math.floor(m.anim)), m.flash ? .5 : 1);
     else if (m.t === 'f') { const s = vulture((tk >> 3) % 2); g.save(); g.translate(m.x + m.w / 2, m.y); if (m.dir < 0) g.scale(-1, 1); g.drawImage(s, -24, 0, 48, 36); g.restore(); }
     else {
@@ -77,12 +84,17 @@ function drawWorld(g, c, vw) {
   }
   for (const s of World.shots) {
     if (s.enemy) { g.fillStyle = PAL.ink; g.fillRect(s.x - 7, s.y - 7, 14, 14); g.fillStyle = PAL.maroon; g.fillRect(s.x - 5, s.y - 5, 10, 10); continue; }
-    if (s.laser || s.snipe) { g.fillStyle = PAL.sky; g.fillRect(s.x - 30, s.y - 3, 60, 6); continue; }
+    if (s.laser || s.snipe) { g.fillStyle = PAL.sky; if (Math.abs(s.vy) > Math.abs(s.vx)) g.fillRect(s.x - 3, s.y - 30, 6, 60); else g.fillRect(s.x - 30, s.y - 3, 60, 6); continue; }
+    if (s.melee) { g.strokeStyle = PAL.paper; g.lineWidth = 5; g.beginPath(); g.arc(s.x, s.y, 30, -1.2 + s.l * .2, .2 + s.l * .2); g.stroke(); continue; }
+    if (s.wave) { g.fillStyle = PAL.ink; g.fillRect(s.x - 10, s.y - 10, 20, 14); g.fillStyle = PAL.dirt; g.fillRect(s.x - 8, s.y - 8, 16, 10); continue; }
     if (s.boom) { g.save(); g.translate(s.x, s.y); g.rotate(tk * .5); g.fillStyle = '#e8c070'; g.fillRect(-16, -3, 32, 6); g.fillRect(-6, -8, 12, 6); g.restore(); continue; }
     if (s.bomb) { g.fillStyle = PAL.ink; g.fillRect(s.x - 8, s.y - 8, 16, 16); g.fillStyle = PAL.sand; g.fillRect(s.x + 2, s.y - 12, 3, 5); continue; }
     if (s.rocket) { g.fillStyle = PAL.grey; g.fillRect(s.x - 8, s.y - 3, 16, 6); g.fillStyle = PAL.red; g.fillRect(s.x + (s.vx > 0 ? 6 : -10), s.y - 3, 4, 6); continue; }
     g.fillStyle = PAL.ink; g.fillRect(s.x - 6, s.y - 4, 12, 8); g.fillStyle = s.o ? s.o.color : PAL.sand; g.fillRect(s.x - 4, s.y - 2, 8, 4);
   }
+  for (const t of L.turrets || []) { g.save(); g.translate(t.x, t.y - 34); g.rotate(t.ang); g.fillStyle = PAL.ink; g.fillRect(-6, -8, 52, 16); g.fillStyle = PAL.grey; g.fillRect(-4, -5, 48, 10); g.fillStyle = PAL.slate; g.fillRect(36, -7, 12, 14); g.restore(); g.fillStyle = PAL.ink; g.fillRect(t.x - 22, t.y - 34, 44, 34); g.fillStyle = PAL.dirt2; g.fillRect(t.x - 19, t.y - 31, 38, 31); g.fillStyle = PAL.dirt; g.fillRect(t.x - 19, t.y - 31, 38, 6); }
+  for (const c of L.cages || []) { if (!c.alive) continue; drawChar(g, 'campesino', c.x, c.y, 2.3, -1, 0); g.fillStyle = PAL.ink; g.fillRect(c.x - 34, c.y - 80, 68, 8); for (let i = 0; i < 7; i++) g.fillRect(c.x - 32 + i * 11, c.y - 76, 4, 76); g.fillRect(c.x - 34, c.y - 4, 68, 4); }
+  if (L.prison) { const P = L.prison; g.fillStyle = 'rgba(43,47,61,.35)'; g.fillRect(P.x0, P.y - 5 * T, P.x1 - P.x0, 5 * T); }
   for (const a of World.allies || []) if (!a.dead) drawChar(g, 'soldado', a.x + a.w / 2, a.y + a.h, 2.5, a.face, !a.ground ? 4 : Math.abs(a.vx) > .5 ? walkFrame(Math.floor(a.walk)) : 0, a.inv > 0 && (a.inv >> 2) % 2 ? .5 : 1);
   for (const p of World.players) {
     if (p.dead) continue;
@@ -103,6 +115,7 @@ function drawWorld(g, c, vw) {
     txt(g, lb.text, cx, top - 7, 11, lb.col, 'center'); g.fillStyle = lb.col; g.fillRect(cx - 3, top, 6, 4);
     g.globalAlpha = 1;
   }
+  if (L.prison) { const P = L.prison; g.fillStyle = PAL.ink; for (let x = P.x0 + 8; x < P.x1; x += 22) g.fillRect(x, P.y - 5 * T, 5, 5 * T); box(g, P.door - 60, P.y - 7 * T, 150, 28, PAL.maroon); txt(g, 'PRISIÓN', P.door + 15, P.y - 7 * T + 21, 12, PAL.cream, 'center'); if (World.players.some(p => p.jail)) { box(g, P.door - 92, P.y - 2 * T - 30, 74, 24, PAL.ink); txt(g, 'S: abrir', P.door - 55, P.y - 2 * T - 12, 10, PAL.sand, 'center'); } }
   for (const q of World.parts) { g.globalAlpha = q.dust ? Math.min(1, q.l / 12) * .8 : 1; g.fillStyle = q.c; g.fillRect(q.x | 0, q.y | 0, q.s, q.s); } g.globalAlpha = 1;
 }
 
@@ -129,10 +142,10 @@ function drawHUD(g, p, x, y, w) {
   const hearts = Math.ceil(p.hp / 20);
   for (let i = 0; i < 5; i++) tile(g, 'tiles', i < hearts ? 44 : 46, x + 6 + i * 24, y + 30, 24);
   if (p.armor > 0) { g.fillStyle = PAL.grey; g.fillRect(x + 8, y + 60, Math.min(118, p.armor * 1.2), 4); }
-  if (World.mode === 'battle') {
+  if (World.mode === 'battle' || World.mode === 'master') {
     const wpn = p.gun ? `${p.gun.n} ${p.gun.ammo}` : `${World.weaponOf(p).n} ${p.ammo}`;
     txt(g, wpn, x + w - 10, y + 44, 13, PAL.cream, 'right');
-    txt(g, p.lock > 0 ? `Espera ${Math.ceil(p.lock / FPS)}` : `Racha ${p.streak}`, x + w - 10, y + 64, 13, p.lock > 0 ? PAL.red : PAL.sand, 'right');
+    txt(g, p.jail ? 'Preso' : p.turret ? 'Ametralladora' : p.lock > 0 ? `Espera ${Math.ceil(p.lock / FPS)}` : `Racha ${p.streak}`, x + w - 10, y + 64, 13, p.lock > 0 ? PAL.red : PAL.sand, 'right');
   }
 }
 function renderWorld(split) {
