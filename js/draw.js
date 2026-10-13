@@ -115,7 +115,7 @@ function drawWorld(g, c, vw) {
     txt(g, lb.text, cx, top - 7, 11, lb.col, 'center'); g.fillStyle = lb.col; g.fillRect(cx - 3, top, 6, 4);
     g.globalAlpha = 1;
   }
-  if (L.prison) { const P = L.prison; g.fillStyle = PAL.ink; for (let x = P.x0 + 8; x < P.x1; x += 22) g.fillRect(x, P.y - 5 * T, 5, 5 * T); box(g, P.door - 60, P.y - 7 * T, 150, 28, PAL.maroon); txt(g, 'PRISIÓN', P.door + 15, P.y - 7 * T + 21, 12, PAL.cream, 'center'); if (World.players.some(p => p.jail)) { box(g, P.door - 92, P.y - 2 * T - 30, 74, 24, PAL.ink); txt(g, 'S: abrir', P.door - 55, P.y - 2 * T - 12, 10, PAL.sand, 'center'); } }
+  if (L.prison) { const P = L.prison; g.fillStyle = PAL.ink; for (let x = P.x0 + 8; x < P.x1; x += 22) g.fillRect(x, P.y - 5 * T, 5, 5 * T); box(g, P.door - 60, P.y - 7 * T, 150, 28, PAL.maroon); txt(g, 'PRISIÓN', P.door + 15, P.y - 7 * T + 21, 12, PAL.cream, 'center'); if (World.players.some(p => p.jail)) for (const sx of [P.door - 55, P.x1 + 60]) { box(g, sx - 37, P.y - 2 * T - 30, 74, 24, PAL.ink); txt(g, 'S: abrir', sx, P.y - 2 * T - 12, 10, PAL.sand, 'center'); } }
   for (const q of World.parts) { g.globalAlpha = q.dust ? Math.min(1, q.l / 12) * .8 : 1; g.fillStyle = q.c; g.fillRect(q.x | 0, q.y | 0, q.s, q.s); } g.globalAlpha = 1;
 }
 

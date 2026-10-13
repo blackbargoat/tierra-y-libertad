@@ -9,7 +9,7 @@
 const MCOLS = 8 * CW;   // 160 tiles wide
 const DIFF = {
   normal:    { label: 'Normal',    allies: 5, spawnEvery: 5.5, maxEnemies: 14, eHp: 3, eDmg: 14, eFire: 75, bossMul: 1,   morph: 30, soloJail: 8,  teamJail: 25, recruitEvery: 35 },
-  imposible: { label: 'Imposible', allies: 3, spawnEvery: 2.6, maxEnemies: 26, eHp: 5, eDmg: 22, eFire: 42, bossMul: 1.8, morph: 20, soloJail: 18, teamJail: 0,  recruitEvery: 50 },
+  imposible: { label: 'Imposible', allies: 3, spawnEvery: 2.6, maxEnemies: 26, eHp: 5, eDmg: 22, eFire: 42, bossMul: 1.8, morph: 20, soloJail: 18, teamJail: 45,  recruitEvery: 50 },
 };
 const PHASES = [
   { boss: { who: 'huerta', name: 'VICTORIANO HUERTA', hp: 60, armor: 20 }, es: 'Fase 1: el ejército federal de Huerta', en: "Phase 1: Huerta's federal army" },
@@ -37,7 +37,7 @@ function buildMaster() {
   for (let r = 17; r <= 22; r++) { set(px0, r, TL.solid); set(px1, r, TL.solid); }
   for (let c = px0; c <= px1; c++) set(c, 16, TL.solid);
   L.prison = { x0: (px0 + 1) * T, x1: px1 * T, door: px0 * T, y: FLOOR_Y };
-  for (let i = 0; i < 4; i++) set(px0 - 6 + i, 22 - i, TL.solid);           // steps beside the prison
+  for (let i = 0; i < 4; i++) { set(px0 - 6 + i, 22 - i, TL.solid); set(px1 + 5 - i, 22 - i, TL.solid); }   // steps on both sides of the prison
   // our base (left): flag and two machine guns
   L.decor.push({ k: 'flag', x: 2 * T, y: FLOOR_Y });
   L.turrets = [{ x: 6 * T, y: FLOOR_Y, ang: -0.15, user: null, cd: 0 }, { x: 13 * T, y: FLOOR_Y, ang: -0.3, user: null, cd: 0 }, { x: Math.floor(MCOLS / 2) * T, y: FLOOR_Y, ang: -0.4, user: null, cd: 0 }];
@@ -97,7 +97,7 @@ const Master = {
     if (p.turret) { p.turret.user = null; p.turret = null; return true; }
     const t = L.turrets.find(t => !t.user && Math.abs(t.x - cx) < 40 && Math.abs(t.y - cy) < 50); if (t) { t.user = p; p.turret = t; Sound.sfx('open'); return true; }
     const c = L.cages.find(c => c.alive && Math.abs(c.x - cx) < 46 && Math.abs(c.y - cy) < 60); if (c) { this.openCage(c); return true; }
-    if (G.players.some(q => q.jail) && Math.abs(L.prison.door - cx) < 70 && Math.abs(L.prison.y - cy) < 80) { this.freeAll(p); return true; }
+    if (G.players.some(q => q.jail) && cx > L.prison.door - 110 && cx < L.prison.x1 + 150 && cy > L.prison.y - 7 * T) { this.freeAll(p); return true; }
     return false;
   },
   openCage(c) { c.alive = false; Sound.sfx('recruit'); World.burst(c.x, c.y - 40, PAL.cream, 16, 6); if (World.allies.filter(a => !a.dead).length < 14) this.addAlly(c.x - 14); msg('¡Un campesino se une al Ejército Liberador del Sur!'); },
@@ -110,7 +110,7 @@ const Master = {
     if (G.players.length === 1 ? this.caps >= (this.diff === 'imposible' ? 2 : 3) : G.players.every(q => q.jail)) this.lose();
     return true;
   },
-  freeAll(by) { const L = World.L; G.players.filter(q => q.jail).forEach(q => Object.assign(q, { jail: 0, x: L.prison.door - 80, y: FLOOR_Y - 57, inv: 150 })); Sound.sfx('recruit'); if (by) by.score += 200; msg('¡Prisioneros liberados!'); },
+  freeAll(by) { const L = World.L, right = by && by.x > L.prison.x1; G.players.filter(q => q.jail).forEach(q => Object.assign(q, { jail: 0, x: right ? L.prison.x1 + 60 : L.prison.door - 80, y: FLOOR_Y - 57, inv: 150 })); Sound.sfx('recruit'); if (by) by.score += 200; msg('¡Prisioneros liberados!'); },
   crate(p, c) { const orig = Battle._orig || (Battle._orig = Battle.resume); Battle.crate(p, c); this.paused = true; Battle.resume = () => { Battle.resume = orig; closePanel(); clearPressed(); for (const k in keys) keys[k] = false; this.paused = false; G.scene = this; }; },
   chest(p, c) { const orig = Battle._orig || (Battle._orig = Battle.resume); Battle.chest(p, c); this.paused = true;
     Battle.resume = () => { Battle.resume = orig; G.scene = this; closePanel(); clearPressed(); for (const k in keys) keys[k] = false; this.paused = false; if (Battle.cq && Battle.cq.typed && Battle.cq.done && $('cres') && /Ganas|Perfecto|Bien/.test($('cres').textContent)) { this.addAlly(p.x); this.addAlly(p.x + 30); msg('Premio extra: 2 soldados nuevos'); } }; },
