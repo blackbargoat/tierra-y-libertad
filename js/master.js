@@ -54,7 +54,7 @@ const Master = {
     G.players.forEach(p => Object.assign(p, { hp: 100, ammo: 12, lock: 0, armor: 0, gun: null, jail: 0, turret: null, streak: 5 }));
     const L = buildMaster(); World.init(L, 'master', G.players, MEV); World.cam = null;
     World.allies = []; for (let i = 0; i < this.D.allies; i++) this.addAlly(L.spawns[0][0] + i * 40);
-    this.phase = -1; this.t = 0; this.spawnT = 0; this.morphT = this.D.morph * FPS; this.warn = 0; this.recruitT = 6 * FPS; this.itemT = 10 * FPS; this.kills = 0; this.over = false;
+    this.phase = -1; this.t = 0; this.spawnT = 0; this.morphT = this.D.morph * FPS; this.warn = 0; this.recruitT = 6 * FPS; this.itemT = 10 * FPS; this.kills = 0; this.over = false; this.caps = 0; this.won = false;
     for (let i = 0; i < 3; i++) this.addCage();
     this.morph(true); show('qbar'); Sound.play('war');
     this.card([[ 'La Revolución', 'The Revolution' ], [ `Nivel Maestro · ${this.D.label}`, 'Defeat the three dictators and their armies.' ]], () => this.nextPhase());
@@ -106,7 +106,8 @@ const Master = {
     Object.assign(p, { jail: 1, jailT: (G.players.length === 1 ? this.D.soloJail : this.D.teamJail) * FPS, x: (L.prison.x0 + L.prison.x1) / 2 - 14, y: FLOOR_Y - 57, vx: 0, vy: 0, hp: 100, gun: null, turret: null, inv: 0, stun: 0 });
     if (p.turret) p.turret.user = null;
     msg(`${p.name} fue capturado. ¡Ve a la prisión a liberarlo!`);
-    if (G.players.every(q => q.jail)) this.lose();
+    this.caps = (this.caps || 0) + 1;
+    if (G.players.length === 1 ? this.caps >= (this.diff === 'imposible' ? 2 : 3) : G.players.every(q => q.jail)) this.lose();
     return true;
   },
   freeAll(by) { const L = World.L; G.players.filter(q => q.jail).forEach(q => Object.assign(q, { jail: 0, x: L.prison.door - 80, y: FLOOR_Y - 57, inv: 150 })); Sound.sfx('recruit'); if (by) by.score += 200; msg('¡Prisioneros liberados!'); },
@@ -187,11 +188,11 @@ const Master = {
     const b = this.boss, armyA = World.allies.filter(a => !a.dead).length, armyE = World.mobs.filter(m => m.t === 's' && !m.dead).length;
     $('qlv').textContent = `Nivel Maestro · ${this.D.label} · Fase ${this.phase + 1} / 3`;
     $('qq').textContent = b ? `${b.name}: ${Math.max(0, b.hp)} / ${b.hpMax}${b.armor > 0 ? ' · armadura ' + b.armor : ''}` : 'Prepárate';
-    $('qa').innerHTML = `<span class="a">Tu ejército: ${armyA}</span><span class="a">Federales: ${armyE}</span><span class="a">Presos: ${G.players.filter(p => p.jail).length}</span><span class="a">Cambio en: ${Math.ceil(Math.max(0, this.morphT) / FPS)}s</span>`;
+    $('qa').innerHTML = `<span class="a">Tu ejército: ${armyA}</span><span class="a">Federales: ${armyE}</span><span class="a">${G.players.length === 1 ? `Capturas: ${this.caps} / ${this.diff === 'imposible' ? 2 : 3}` : `Presos: ${G.players.filter(p => p.jail).length}`}</span><span class="a">Cambio en: ${Math.ceil(Math.max(0, this.morphT) / FPS)}s</span>`;
     $('qtime').textContent = '';
   },
   win() {
-    this.over = true; Sound.play('title');
+    this.over = true; this.won = true; Sound.play('title');
     const rows = G.players.slice().sort((a, b) => b.score - a.score).map(p => `<tr><td>${p.name}</td><td>${p.score}</td><td>${p.ko}</td></tr>`).join('');
     Cut.start([{ card: [['¡Tierra y Libertad!', 'Land and Liberty!'], ['La revolución ganó.', 'The revolution won.']] }], () => {
       panel(`<h2>¡Ganaste! Nivel Maestro (${this.D.label})</h2><table style="font-size:24px"><tr><td>Jugador</td><td>Puntos</td><td>KOs</td></tr>${rows}</table><button class="btn" onclick="MasterMenu.open()">Otra vez</button><button class="btn alt" onclick="Chapters.start()">Capítulos</button>`, { enter: () => Chapters.start() });
