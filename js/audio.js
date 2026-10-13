@@ -1,10 +1,13 @@
 'use strict';
 // Sound: synthesized music + effects, and the Spanish voice files
 const Sound = {
-  ctx: null, muted: Save.get('mute', false), vol: Object.assign({ music: .8, voice: 1, sfx: .8 }, Save.get('vol', {})),
+  ctx: null, muted: (Save.get('muteFix', false) ? Save.get('mute', false) : (Save.set('mute', false), Save.set('muteFix', true), false)), vol: Object.assign({ music: .8, voice: 1, sfx: .8 }, Save.get('vol', {})),
   mv(k) { return this.muted ? 0 : Math.min(1, .5 * this.vol.music * k); },
   applyVol() { Save.set('vol', this.vol); if (this.track) this.track.volume = this.mv(1); if (this.mus) this.mus.gain.value = .32 * this.vol.music; if (this.fx) this.fx.gain.value = .5 * this.vol.sfx; if (this.vo) this.vo.volume = this.vol.voice; }, song: null, step: 0, next: 0, timer: null, vo: null,
   init() {
+    // every click / key: make sure audio is unlocked and the wanted music is actually playing
+    if (this.track && this.track.paused && this.trackName) this.track.play().catch(() => {});
+    if (this.want && !this.trackName && this.ctx) { const w = this.want; this.want = null; this.play(w); }
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     try {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();

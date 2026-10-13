@@ -17,12 +17,11 @@ addEventListener('keydown', e => {
   if (e.target.tagName === 'TEXTAREA' || (e.target.tagName === 'INPUT' && e.target.type === 'text')) return;
   if (e.code === 'Escape') { e.preventDefault(); Settings.isOpen ? Settings.close() : Settings.open(); return; }
   if (Settings.isOpen) return;
-  if (e.code === 'KeyM') { Sound.toggle(); return; }
   if (Date.now() - openedAt < 250) return;
   if (onKey && onKey(e)) { e.preventDefault(); return; }
   if ((e.code === 'Enter' || e.code === 'Space') && onEnter) { e.preventDefault(); onEnter(); }
 });
-addEventListener('mousedown', () => Sound.init());
+['mousedown', 'pointerdown', 'click', 'touchstart'].forEach(ev => addEventListener(ev, () => Sound.init(), true));
 // click a character to see their name
 cv.addEventListener('mousedown', e => {
   if (!World.views || !World.L || ![Explore, Battle].includes(G.scene)) return;
@@ -81,7 +80,7 @@ const Title = {
       <div class="lbl">JUGADORES</div>${opt('nP', 1, '1')}${opt('nP', 2, '2')}${opt('nP', 3, '3')}
       <div class="lbl">PANTALLA</div>${opt('split', true, 'Dividida')}${opt('split', false, 'Compartida')}
       <div><button class="btn" style="font-size:30px;margin-top:16px" onclick="Select.start()">Jugar</button><button class="btn alt" onclick="Settings.open()">Ajustes</button></div>
-      <div class="small">Enter para jugar. Esc = ajustes. <a href="index.html" style="color:#c2e3e8">Modo estudio</a></div></div>`, { top: '74%', width: '520px', noDim: true, enter: () => Select.start() });
+      <div class="small">Enter para jugar. Esc = ajustes (sonido y controles). <a href="index.html" style="color:#c2e3e8">Modo estudio</a></div></div>`, { top: '74%', width: '520px', noDim: true, enter: () => Select.start() });
   },
   update() { this.x += 1.2; },
   draw() {
@@ -476,6 +475,7 @@ const Settings = {
     const rows = PKEYS.map((k, i) => `<tr><td style="color:${PCOL[i]}">Jugador ${i + 1}</td>${acts.map(([a]) => { const cap = this.capture && this.capture[0] === i && this.capture[1] === a; return `<td><button class="kb${used[k[a]] > 1 ? ' dup' : ''}" onclick="Settings.capture=[${i},'${a}'];Settings.render()">${cap ? '...' : keyName(k[a])}</button></td>`; }).join('')}</tr>`).join('');
     const inCut = G.scene === Cut;
     $('settings').innerHTML = `<h2>Ajustes</h2>
+      <div class="lbl">SONIDO</div><button class="btn ${!Sound.muted ? 'on' : 'alt'}" onclick="if(Sound.muted)Sound.toggle();Settings.render()">Sí</button><button class="btn ${Sound.muted ? 'on' : 'alt'}" onclick="if(!Sound.muted)Sound.toggle();Settings.render()">No</button>
       <div class="lbl">VOLUMEN</div>${sl('music', 'Música')}${sl('voice', 'Voces')}${sl('sfx', 'Efectos')}
       <div class="lbl">PANTALLA</div><button class="btn ${G.split ? 'on' : 'alt'}" onclick="G.split=true;Save.set('split',true);Settings.render()">Dividida</button><button class="btn ${!G.split ? 'on' : 'alt'}" onclick="G.split=false;Save.set('split',false);Settings.render()">Compartida</button>
       <div class="lbl">CONTROLES ${this.capture ? '· presiona una tecla (Esc cancela)' : '· haz clic para cambiar'}</div>
