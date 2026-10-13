@@ -41,6 +41,16 @@ function buildMaster() {
   // our base (left): flag and two machine guns
   L.decor.push({ k: 'flag', x: 2 * T, y: FLOOR_Y });
   L.turrets = [{ x: 6 * T, y: FLOOR_Y, ang: -0.15, user: null, cd: 0 }, { x: 13 * T, y: FLOOR_Y, ang: -0.3, user: null, cd: 0 }, { x: Math.floor(MCOLS / 2) * T, y: FLOOR_Y, ang: -0.4, user: null, cd: 0 }];
+  // secret tunnel: a hole in the middle of the map leads under the prison to a trapdoor
+  const te = 3 * CW + 10;
+  for (let r = 23; r <= 28; r++) { set(te, r, TL.air); set(te + 1, r, TL.air); }
+  for (let r = 29; r <= 32; r++) for (let c = te - 2; c <= px0 + 6; c++) set(c, r, TL.air);
+  L.pads.push({ x: te * T, y: 33 * T, t: 0 });
+  L.decor.push({ k: 'sign', x: (te - 2) * T, y: FLOOR_Y });
+  L.trap = { c0: px0 + 3, c1: px0 + 4, open: 0 };
+  L.tunnel = { x: te * T };
+  // armored cart with a cannon and a minigun, parked at our base
+  L.carts = [{ x: 9 * T, y: FLOOR_Y - 60, w: 110, h: 60, vx: 0, vy: 0, face: 1, hp: 220, hpMax: 220, driver: null, cd: 0, ccd: 0, dead: 0, wheel: 0, home: 9 * T }];
   L.morph = { c0: 1, c1: 6 };   // chunks that reshape
   L.spawns = [[3 * T, FLOOR_Y - 56], [4 * T + 20, FLOOR_Y - 56], [6 * T, FLOOR_Y - 56]];
   L.enemySpawn = (px0 - 9) * T;
@@ -95,13 +105,16 @@ const Master = {
   use(p) { // action key: mount/leave a machine gun, open a cage, free the prisoners
     const L = World.L, cx = p.x + p.w / 2, cy = p.y + p.h;
     if (p.turret) { p.turret.user = null; p.turret = null; return true; }
+    const cart = L.carts.find(c => !c.dead && !c.driver && Math.abs(c.x + c.w / 2 - cx) < 80 && Math.abs(c.y + c.h - cy) < 70); if (cart) { cart.driver = p; p.cart = cart; Sound.sfx('open'); msg(`${p.name} maneja la carreta: mover, disparar, tiro arriba = cañón, saltar = salir`); return true; }
+    if (!L.trap.open && cx > L.trap.c0 * T - 70 && cx < (L.trap.c1 + 1) * T + 70 && cy > 29 * T && cy < 34 * T) { this.setTrap(true); return true; }
     const t = L.turrets.find(t => !t.user && Math.abs(t.x - cx) < 40 && Math.abs(t.y - cy) < 50); if (t) { t.user = p; p.turret = t; Sound.sfx('open'); return true; }
     const c = L.cages.find(c => c.alive && Math.abs(c.x - cx) < 46 && Math.abs(c.y - cy) < 60); if (c) { this.openCage(c); return true; }
     if (G.players.some(q => q.jail) && cx > L.prison.door - 110 && cx < L.prison.x1 + 150 && cy > L.prison.y - 7 * T) { this.freeAll(p); return true; }
     return false;
   },
   openCage(c) { c.alive = false; Sound.sfx('recruit'); World.burst(c.x, c.y - 40, PAL.cream, 16, 6); if (World.allies.filter(a => !a.dead).length < 14) this.addAlly(c.x - 14); msg('¡Un campesino se une al Ejército Liberador del Sur!'); },
-  captured(p) {
+  captured(p, by) {
+    if (by && by !== p && G.players.includes(by)) return false;   // knocked out by a teammate: just respawn
     const L = World.L; Sound.sfx('jail'); World.burst(p.x + p.w / 2, p.y + 20, p.color, 20, 8);
     Object.assign(p, { jail: 1, jailT: (G.players.length === 1 ? this.D.soloJail : this.D.teamJail) * FPS, x: (L.prison.x0 + L.prison.x1) / 2 - 14, y: FLOOR_Y - 57, vx: 0, vy: 0, hp: 100, gun: null, turret: null, inv: 0, stun: 0 });
     if (p.turret) p.turret.user = null;
@@ -142,10 +155,31 @@ const Master = {
       if (--m.callT <= 0) { m.callT = 9 * FPS; for (let i = 0; i < (this.diff === 'imposible' ? 4 : 2); i++) this.addEnemy(m.x - 60 + i * 40); msg(`${m.name} llama a su ejército`); }
     }
   },
+  setTrap(open) { const L = World.L, g = L.grid; for (let r = 23; r <= 28; r++) for (let c = L.trap.c0; c <= L.trap.c1; c++) g.t[r * g.cols + c] = open ? TL.air : TL.solid; L.trap.open = open ? 15 * FPS : 0; if (open) { Sound.sfx('boom'); World.shake = 8; msg('¡El túnel está abierto! Bajen por el hueco.'); } },
   // ---- per frame ----
   update() {
     if (this.paused || this.over) return;
     const L = World.L, D = this.D; this.t++;
+    // trapdoor closes again after a while (if nobody is standing in the hole)
+    if (L.trap.open && --L.trap.open <= 0) { const inHole = [...G.players, ...World.allies, ...World.mobs].some(b => !b.dead && b.x + b.w > L.trap.c0 * T && b.x < (L.trap.c1 + 1) * T && b.y + b.h > FLOOR_Y - 4 && b.y < 29 * T); if (inHole) L.trap.open = 60; else this.setTrap(false); }
+    // carts: drive with left/right, any shoot key fires, up-shot fires the cannon, jump gets out
+    for (const c of L.carts) {
+      if (c.dead > 0) { if (--c.dead === 0) Object.assign(c, { x: c.home, y: FLOOR_Y - 60, hp: c.hpMax, vx: 0, vy: 0 }); continue; }
+      const p = c.driver;
+      if (p) { const k = p.keys; p.x = c.x + c.w / 2 - p.w / 2; p.y = c.y - p.h + 14; p.vx = 0; p.vy = 0; p.inv = Math.max(p.inv, 2);
+        const dir = (keys[k.r] ? 1 : 0) - (keys[k.l] ? 1 : 0); c.vx = clamp(c.vx + dir * .35, -4.2, 4.2); if (dir) c.face = dir; else c.vx *= .93;
+        if (pressed[k.j] || p.jail || p.dead) { c.driver = null; p.cart = null; p.vy = -10; }
+        else {
+          if ((keys[k.f] || keys[k.sl] || keys[k.sr]) && --c.cd <= 0) { c.cd = 4; if (keys[k.sl]) c.face = -1; if (keys[k.sr]) c.face = 1; const a = (Math.random() - .5) * .1; World.shots.push({ x: c.x + c.w / 2 + c.face * 60, y: c.y + 14, vx: Math.cos(a) * 16 * c.face, vy: Math.sin(a) * 16, o: p, l: 70, w: { dmg: 1, pdmg: 8 }, pellet: true }); Sound.sfx('mg'); }
+          if (keys[k.su] && --c.ccd <= 0) { c.ccd = 50; World.shots.push({ x: c.x + c.w / 2 + c.face * 50, y: c.y, vx: c.face * 9, vy: -8, o: p, l: 160, w: { dmg: 6, pdmg: 50, R: 140 }, bomb: true }); Sound.sfx('cannon'); World.shake = 6; }
+        }
+        pressed[k.j] = false; pressed[k.f] = false; pressed[k.su] = false; pressed[k.sl] = false; pressed[k.sr] = false;
+      } else c.vx *= .9;
+      c.vy = Math.min(c.vy + .9, 15); World.moveBody(c, L); c.wheel += c.vx * .08;
+      for (const s of World.shots) if (s.enemy && s.l > 0 && s.x > c.x && s.x < c.x + c.w && s.y > c.y && s.y < c.y + c.h) { c.hp -= s.dmg || 15; if (!s.wave) s.l = 0; }
+      for (const mb of World.mobs) if (!mb.dead && mb.t === 's' && Math.abs(c.vx) > 2.5 && mb.x < c.x + c.w && mb.x + mb.w > c.x && mb.y + mb.h > c.y) World.hitMob(mb, 99, p);   // run them over
+      if (c.hp <= 0) { World.burst(c.x + c.w / 2, c.y + 30, PAL.sand, 40, 12); Sound.sfx('boom'); if (c.driver) { c.driver.cart = null; c.driver.vy = -12; } c.driver = null; c.dead = 30 * FPS; msg('¡La carreta explotó! Vuelve en 30 segundos.'); }
+    }
     // machine guns: the player stays on it, left/right aims, any shoot key fires, jump gets off
     for (const p of G.players) if (p.turret) {
       const t = p.turret, k = p.keys; p.x = t.x - p.w / 2 - 8; p.vx = 0;
@@ -158,7 +192,9 @@ const Master = {
     World.update();
     // prison: jailed players stay inside; timer frees them in solo / normal team play
     for (const p of G.players) if (p.jail) {
+      if (p.y + p.h > FLOOR_Y + 8) { p.jail = 0; p.inv = 120; p.digT = 0; msg(`${p.name} escapó por el túnel`); Sound.sfx('recruit'); continue; }
       p.x = clamp(p.x, L.prison.x0 + 4, L.prison.x1 - p.w - 4); if (p.y < FLOOR_Y - 5 * T) p.y = FLOOR_Y - 5 * T;
+      if (keys[p.keys.f] && p.ground && !L.trap.open) { p.digT = (p.digT || 0) + 1; if (p.digT % 12 === 0) { World.dust(p, 3); Sound.sfx('step'); } if (p.digT > 4 * FPS) { p.digT = 0; this.setTrap(true); msg(`${p.name} cavó un hoyo. ¡Escapa por el túnel!`); } } else p.digT = Math.max(0, (p.digT || 0) - 2);
       if (p.jailT > 0 && --p.jailT === 0) { p.jail = 0; p.x = L.prison.door - 80; p.inv = 150; msg(`${p.name} escapó de la prisión`); }
     }
     for (const c of L.cages) if (c.alive) for (const s of World.shots) if (!s.enemy && s.l > 0 && Math.abs(s.x - c.x) < 30 && s.y > c.y - 70 && s.y < c.y) { s.l = 0; if (--c.hp <= 0) this.openCage(c); }
@@ -179,7 +215,7 @@ const Master = {
   },
   dropItem() { // weapons, crates (packet questions) and chests (type the verb) fall from the sky
     const L = World.L, x = irand(2 * CW, 7 * CW) * T, r = Math.random(), y = FLOOR_Y - irand(1, 6) * T;
-    if (r < .45) L.guns.push({ x, y, type: pick(['machinegun', 'dynamite', 'machete', 'shotgun', 'sniper', 'bomb', 'boomerang']), alive: true, t: 0, once: true });
+    if (r < .45) L.guns.push({ x, y, type: pick(['minigun', 'machinegun', 'dynamite', 'machete', 'shotgun', 'sniper', 'bomb', 'boomerang']), alive: true, t: 0, once: true });
     else if (r < .75) L.crates.push({ x, y, type: Math.random() < .5 ? 'q' : 'p', alive: true, t: 0 });
     else L.chests.push({ x, y, alive: true, t: 0 });
     L.hearts.push({ x: x + 200, y, alive: true, t: 0 });
@@ -204,15 +240,16 @@ const Master = {
   },
   draw() { renderWorld(G.split); },
 };
-const MEV = { msg, interact() {}, note() {}, letter() {}, orb() {},
-  crate: (p, c) => Master.crate(p, c), chest: (p, c) => Master.chest(p, c), use: p => Master.use(p), captured: p => Master.captured(p), ai: m => Master.ai(m) };
+const MEV = { msg, interact() {}, note() {}, letter() {}, orb() {}, freeAll: by => Master.freeAll(by),
+  crate: (p, c) => Master.crate(p, c), chest: (p, c) => Master.chest(p, c), use: p => Master.use(p), captured: (p, by) => Master.captured(p, by), ai: m => Master.ai(m) };
 const MasterMenu = {
   open() {
     closeAll(); G.scene = Title;
     panel(`<h2>Nivel Maestro: La Revolución</h2><div>Tu ejército contra el ejército federal. El campo cambia de forma. Libera campesinos, usa las ametralladoras y derrota a Huerta, Carranza y Porfirio Díaz.</div>
       <div class="en">Your army vs the federal army. The arena changes shape. Free campesinos, use the machine guns, and defeat Huerta, Carranza and Porfirio Díaz.</div>
       <div class="small">La armadura de los jefes solo se rompe con dinamita, rifle, sombrero, cohetes o las ametralladoras fijas. / Boss armor only breaks with dynamite, rifle, sombrero, rockets or the mounted machine guns.</div>
-      <div class="lbl">CONTROLES EXTRA</div><div class="small">${PKEYS.slice(0, G.players.length).map((k, i) => `Jugador ${i + 1}: disparar izq ${keyName(k.sl)}, der ${keyName(k.sr)}, arriba ${keyName(k.su)} · acción ${keyName(k.f)} = ametralladora / jaula / prisión`).join('<br>')}</div>
+      <div class="small">Túnel secreto: baja por el hueco con el letrero, camina bajo la prisión y presiona S para abrir la trampa. Si estás preso, mantén S para cavar. / Secret tunnel under the map into the prison; if you are locked up, hold S to dig out.</div>
+      <div class="lbl">CONTROLES EXTRA</div><div class="small">${PKEYS.slice(0, G.players.length).map((k, i) => `Jugador ${i + 1}: disparar izq ${keyName(k.sl)}, der ${keyName(k.sr)}, arriba ${keyName(k.su)} · acción ${keyName(k.f)} = ametralladora / carreta / jaula / prisión`).join('<br>')}</div>
       <button class="btn" onclick="Master.start('normal')">Normal</button><button class="btn" style="background:#d95763;color:#fbf1e3" onclick="Master.start('imposible')">Imposible</button><button class="btn alt" onclick="Chapters.start()">Volver</button>`, { enter: () => Master.start('normal') });
   },
 };

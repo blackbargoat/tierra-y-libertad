@@ -93,6 +93,12 @@ function drawWorld(g, c, vw) {
     g.fillStyle = PAL.ink; g.fillRect(s.x - 6, s.y - 4, 12, 8); g.fillStyle = s.o ? s.o.color : PAL.sand; g.fillRect(s.x - 4, s.y - 2, 8, 4);
   }
   for (const t of L.turrets || []) { g.save(); g.translate(t.x, t.y - 34); g.rotate(t.ang); g.fillStyle = PAL.ink; g.fillRect(-6, -8, 52, 16); g.fillStyle = PAL.grey; g.fillRect(-4, -5, 48, 10); g.fillStyle = PAL.slate; g.fillRect(36, -7, 12, 14); g.restore(); g.fillStyle = PAL.ink; g.fillRect(t.x - 22, t.y - 34, 44, 34); g.fillStyle = PAL.dirt2; g.fillRect(t.x - 19, t.y - 31, 38, 31); g.fillStyle = PAL.dirt; g.fillRect(t.x - 19, t.y - 31, 38, 6); }
+  for (const c of L.carts || []) { if (c.dead) continue; const x = c.x, y = c.y, f = c.face;
+    g.fillStyle = PAL.ink; g.fillRect(x - 3, y + 6, c.w + 6, 40); g.fillStyle = PAL.dirt2; g.fillRect(x, y + 9, c.w, 34); g.fillStyle = PAL.grey; g.fillRect(x, y + 9, c.w, 8); g.fillStyle = PAL.slate; for (let i = 8; i < c.w; i += 18) g.fillRect(x + i, y + 22, 4, 4);
+    g.fillStyle = PAL.ink; g.fillRect(x + c.w / 2 + f * 30 - (f < 0 ? 40 : 0), y + 8, 40, 10); g.fillStyle = PAL.grey; g.fillRect(x + c.w / 2 + f * 30 - (f < 0 ? 38 : -2), y + 10, 36, 6);
+    for (const wx of [x + 22, x + c.w - 22]) { g.fillStyle = PAL.ink; g.beginPath(); g.arc(wx, y + 48, 13, 0, 7); g.fill(); g.fillStyle = PAL.dirt; g.beginPath(); g.arc(wx, y + 48, 9, 0, 7); g.fill(); g.strokeStyle = PAL.ink; g.lineWidth = 3; g.beginPath(); g.moveTo(wx + Math.cos(c.wheel) * 9, y + 48 + Math.sin(c.wheel) * 9); g.lineTo(wx - Math.cos(c.wheel) * 9, y + 48 - Math.sin(c.wheel) * 9); g.stroke(); }
+    if (c.hp < c.hpMax) { g.fillStyle = PAL.ink; g.fillRect(x, y - 10, c.w, 6); g.fillStyle = PAL.green; g.fillRect(x, y - 10, c.w * c.hp / c.hpMax, 6); } }
+  if (L.trap) { const tx = L.trap.c0 * T; if (!L.trap.open) { g.fillStyle = PAL.ink; g.fillRect(tx - 2, FLOOR_Y - 2, 2 * T + 4, 10); g.fillStyle = PAL.dirt2; for (let i = 0; i < 4; i++) g.fillRect(tx + i * 18, FLOOR_Y, 14, 6); } }
   for (const c of L.cages || []) { if (!c.alive) continue; drawChar(g, 'campesino', c.x, c.y, 2.3, -1, 0); g.fillStyle = PAL.ink; g.fillRect(c.x - 34, c.y - 80, 68, 8); for (let i = 0; i < 7; i++) g.fillRect(c.x - 32 + i * 11, c.y - 76, 4, 76); g.fillRect(c.x - 34, c.y - 4, 68, 4); }
   if (L.prison) { const P = L.prison; g.fillStyle = 'rgba(43,47,61,.35)'; g.fillRect(P.x0, P.y - 5 * T, P.x1 - P.x0, 5 * T); }
   for (const a of World.allies || []) if (!a.dead) drawChar(g, 'soldado', a.x + a.w / 2, a.y + a.h, 2.5, a.face, !a.ground ? 4 : Math.abs(a.vx) > .5 ? walkFrame(Math.floor(a.walk)) : 0, a.inv > 0 && (a.inv >> 2) % 2 ? .5 : 1);
@@ -102,6 +108,7 @@ function drawWorld(g, c, vw) {
     const sq = (p.squash || 0) / 9, st = (p.stretch || 0) / 9, sx = 1 + .2 * sq - .12 * st, sy = 1 - .2 * sq + .14 * st;
     const a = p.inv > 0 && (p.inv >> 2) % 2 ? .4 : p.lock > 0 ? .55 : 1;
     drawChar(g, p.hero, p.x + p.w / 2, p.y + p.h, 2.5, p.face, fr, a, sx, sy);
+    if (p.digT > 0) { g.fillStyle = PAL.ink; g.fillRect(p.x - 6, p.y - 30, p.w + 12, 8); g.fillStyle = PAL.sand; g.fillRect(p.x - 4, p.y - 28, (p.w + 8) * Math.min(1, p.digT / 240), 4); }
     if (p.lock > 0) { g.fillStyle = PAL.ink; g.fillRect(p.x - 6, p.y - 30, p.w + 12, 8); g.fillStyle = PAL.red; g.fillRect(p.x - 4, p.y - 28, (p.w + 8) * p.lock / p.lockMax, 4); }
     if (p.shieldT > 0) { g.strokeStyle = PAL.sky; g.lineWidth = 3; g.strokeRect(p.x - 8, p.y - 8, p.w + 16, p.h + 12); }
   }
@@ -145,7 +152,7 @@ function drawHUD(g, p, x, y, w) {
   if (World.mode === 'battle' || World.mode === 'master') {
     const wpn = p.gun ? `${p.gun.n} ${p.gun.ammo}` : `${World.weaponOf(p).n} ${p.ammo}`;
     txt(g, wpn, x + w - 10, y + 44, 13, PAL.cream, 'right');
-    txt(g, p.jail ? 'Preso' : p.turret ? 'Ametralladora' : p.lock > 0 ? `Espera ${Math.ceil(p.lock / FPS)}` : `Racha ${p.streak}`, x + w - 10, y + 64, 13, p.lock > 0 ? PAL.red : PAL.sand, 'right');
+    txt(g, p.jail ? 'Preso: S = cavar' : p.cart ? 'Carreta' : p.turret ? 'Ametralladora' : p.lock > 0 ? `Espera ${Math.ceil(p.lock / FPS)}` : `Racha ${p.streak}`, x + w - 10, y + 64, 13, p.lock > 0 ? PAL.red : PAL.sand, 'right');
   }
 }
 function renderWorld(split) {

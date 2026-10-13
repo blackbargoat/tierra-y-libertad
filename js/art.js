@@ -224,6 +224,7 @@ const ITEMS = {
   book: ['............', '..HHHHHHHH..', '.HppppppppH.', '.HpllllllpH.', '.HppppppppH.', '.HplllllppH.', '.HppppppppH.', '.HHHHHHHHHH.', '............', '............', '............', '............'],
   machinegun: ['............', '..kk........', 'gggggggggggg', 'GGGGGGGGGGGG', 'gggggggggg..', '.bbbbk.k....', 'bbbb..kk....', 'bbb.........', 'bB..........', '............', '............', '............'],
   dynamite: ['.........y..', '........o...', '.......k....', '..rrrrrr....', '.rrrrrrrr...', '.rrrrrrrr...', '.rrrrrrrr...', '..rrrrrr....', '..rrrrrr....', '..rrrrrr....', '...rrrr.....', '............'],
+  minigun: ['............', 'kkkk........', 'gggggggggggg', 'GGGGGGGGGGGG', 'gggggggggggg', 'GGGGGGGGGGGG', 'kkkkbb......', '..bbbb......', '.bbb........', '............', '............', '............'],
   machete: ['..........GG', '.........GGG', '........GGG.', '.......GGG..', '......GGG...', '.....GGG....', '....GGG.....', '..bbG.......', '.bbb........', 'bbb.........', 'bb..........', '............'],
   medal: ['...rr..rr...', '...rr..rr...', '....rrrr....', '.....rr.....', '....dddd....', '...dddddd...', '...ddyydd...', '...dddddd...', '....dddd....', '............', '............', '............'],
 };

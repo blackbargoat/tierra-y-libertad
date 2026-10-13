@@ -28,6 +28,7 @@ const GUNS = {
   sniper: { n: 'Rifle', ammo: 5, cd: 45, dmg: 6, pdmg: 50, kind: 'snipe', col: PAL.blue },
   machinegun: { n: 'Ametralladora', ammo: 70, cd: 6, dmg: 1, pdmg: 9, kind: 'mg', col: PAL.grey },
   dynamite: { n: 'Dinamita', ammo: 5, cd: 40, dmg: 7, pdmg: 55, kind: 'bomb', R: 175, col: PAL.red },
+  minigun: { n: 'Minigun', ammo: 220, cd: 3, dmg: 1, pdmg: 7, kind: 'mg', heavy: true, col: PAL.grey },
   machete: { n: 'Machete', ammo: 40, cd: 20, dmg: 4, pdmg: 35, kind: 'melee', col: PAL.grey },
 };
 const POWERS = [
@@ -72,7 +73,7 @@ const World = {
   },
   ko(p, by) {
     if (p.dead || p.jail) return;
-    if (this.events.captured && this.events.captured(p)) return; this.burst(p.x + p.w / 2, Math.min(p.y + p.h / 2, H - 20), p.color, 30, 10); this.shake = 10; Sound.sfx('ko');
+    if (this.events.captured && this.events.captured(p, by)) return; this.burst(p.x + p.w / 2, Math.min(p.y + p.h / 2, H - 20), p.color, 30, 10); this.shake = 10; Sound.sfx('ko');
     if (by) { by.score += 150; by.ko++; this.events.msg(`${by.name} derrotó a ${p.name}`); } else { p.score = Math.max(0, p.score - 50); this.events.msg(`${p.name} se cayó`); }
     Object.assign(p, { dead: 3 * FPS, vx: 0, vy: 0, stun: 0, on: null });
   },
@@ -140,12 +141,16 @@ const World = {
       if (a.dead > 0) { if (--a.dead === 0) Object.assign(a, { x: L.spawns[1][0], y: L.spawns[1][1], hp: 60, vx: 0, vy: 0 }); continue; }
       if (a.inv > 0) a.inv--; if (a.cd > 0) a.cd--;
       const ax = a.x + a.w / 2, ay = a.y + a.h / 2;
-      const tgt = this.mobs.filter(m => !m.dead && Math.abs(m.x + m.w / 2 - ax) < 650 && Math.abs(m.y + m.h / 2 - ay) < 220).sort((p, q) => Math.abs(p.x - ax) - Math.abs(q.x - ax))[0];
+      const foes = this.mobs.filter(m => !m.dead);
+      const tgt = foes.filter(m => Math.abs(m.x + m.w / 2 - ax) < 700 && Math.abs(m.y + m.h / 2 - ay) < 260).sort((p, q) => Math.abs(p.x - ax) - Math.abs(q.x - ax))[0];
       let goal = null;
-      if (tgt) { const dx = tgt.x + tgt.w / 2 - ax; a.face = Math.sign(dx) || 1; if (Math.abs(dx) > 240) goal = Math.sign(dx);
-        if (a.cd <= 0) { a.cd = 50; this.shots.push({ x: ax + a.face * 18, y: a.y + 24, vx: a.face * 11, vy: (tgt.y + tgt.h / 2 - ay) / 60, o: null, ally: true, l: 70, w: { dmg: 1, pdmg: 0 } }); Sound.sfx('shoot'); } }
-      else { const pl = this.players.filter(p => !p.dead).sort((p, q) => Math.abs(p.x - ax) - Math.abs(q.x - ax))[0]; if (pl && Math.abs(pl.x - ax) > 140 + a.k * 40) goal = Math.sign(pl.x - ax); }
-      if (goal) { a.vx += goal * 1.1; a.vx = clamp(a.vx, -3.6, 3.6); a.face = goal; } else a.vx *= .7;
+      if (tgt) { const dx = tgt.x + tgt.w / 2 - ax; a.face = Math.sign(dx) || 1; if (Math.abs(dx) > 200 + a.k * 25) goal = Math.sign(dx);
+        if (a.cd <= 0) { a.cd = 36 + (a.k % 3) * 6; this.shots.push({ x: ax + a.face * 18, y: a.y + 24, vx: a.face * 12, vy: (tgt.y + tgt.h / 2 - ay) / 55, o: null, ally: true, l: 70, w: { dmg: 1, pdmg: 0 } }); Sound.sfx('shoot'); } }
+      else if (foes.length && this.mode === 'master') { const f = foes.reduce((m, q) => Math.abs(q.x - ax) < Math.abs(m.x - ax) ? q : m); goal = Math.sign(f.x - ax); }   // march on the enemy
+      else { const pl = this.players.filter(p => !p.dead && !p.jail).sort((p, q) => Math.abs(p.x - ax) - Math.abs(q.x - ax))[0]; if (pl && Math.abs(pl.x - ax) > 140 + a.k * 40) goal = Math.sign(pl.x - ax); }
+      // reaching the prison frees anyone locked up
+      if (L.prison && this.players.some(p => p.jail) && ax > L.prison.door - 90 && ax < L.prison.x1 + 130 && Math.abs(a.y + a.h - L.prison.y) < 60 && this.events.freeAll) this.events.freeAll(null);
+      if (goal) { a.vx += goal * 1.1; a.vx = clamp(a.vx, -3.8, 3.8); if (!tgt) a.face = goal; } else a.vx *= .7;
       a.vy = Math.min(a.vy + (a.vy < 0 ? .62 : .9), 15);
       const wasWall = a.wall; this.moveBody(a, L);
       if (goal && a.ground && (a.wall || wasWall)) { a.vy = -13; }
@@ -164,8 +169,8 @@ const World = {
       if (p.inv > 0) p.inv--; if (p.cd > 0) p.cd--; if (p.lock > 0) p.lock--;
       for (const b of ['speedT', 'jumpT', 'megaT', 'shieldT']) if (p[b] > 0) p[b]--;
       // ---- movement: snappy run, coyote time, jump buffer, variable jump height ----
-      const dir = p.stun > 0 || p.turret ? 0 : (keys[k.r] ? 1 : 0) - (keys[k.l] ? 1 : 0);
-      const maxV = (p.hero === 'campesino' ? 6.4 : 5.2) * (p.speedT > 0 ? 1.35 : 1);
+      const dir = p.stun > 0 || p.turret || p.cart ? 0 : (keys[k.r] ? 1 : 0) - (keys[k.l] ? 1 : 0);
+      const maxV = (p.hero === 'campesino' ? 6.4 : 5.2) * (p.speedT > 0 ? 1.35 : 1) * (p.gun && p.gun.heavy ? .6 : 1);
       if (p.stun > 0) { p.stun--; p.vx *= .88; }
       else if (dir) {
         const turning = Math.sign(p.vx) === -dir && Math.abs(p.vx) > .5; if (turning && p.ground && Math.abs(p.vx) > 3) this.dust(p, 2);
@@ -182,7 +187,7 @@ const World = {
         else if (p.jumps < maxJ && pressed[k.j]) { p.vy = -11.6; p.jumps = Math.max(p.jumps, 1) + 1; p.jbuf = 0; p.on = null; p.stretch = 7; Sound.sfx('jump'); this.dust(p, 4); }
       }
       if (p.padT > 0) p.padT--; else if (!keys[k.j] && p.vy < -4) p.vy *= .6;   // let go early = short hop
-      const can = p.stun <= 0 && !p.jail && !p.turret;
+      const can = p.stun <= 0 && !p.jail && !p.turret && !p.cart;
       if (can && battle) {
         if (pressed[k.f] && this.events.use && this.events.use(p)) {}  // mount a gun / open a cage / free prisoners
         else { const aim = pressed[k.su] || (keys[k.su] && p.gun && p.gun.kind === 'mg') ? 'U' : pressed[k.sl] || (keys[k.sl] && p.gun && p.gun.kind === 'mg') ? 'L' : pressed[k.sr] || (keys[k.sr] && p.gun && p.gun.kind === 'mg') ? 'R' : pressed[k.f] || (keys[k.f] && p.gun && p.gun.kind === 'mg') ? 'face' : null;
