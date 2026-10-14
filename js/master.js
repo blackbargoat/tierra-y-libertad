@@ -97,6 +97,8 @@ const Master = {
     G.scene = this; closeAll(); this.D = DIFF[diff]; this.diff = diff;
     G.players.forEach(p => Object.assign(p, { hp: 100, ammo: 12, lock: 0, armor: 0, gun: null, jail: 0, turret: null, streak: 5 }));
     const L = buildMaster(); World.init(L, 'master', G.players, MEV); World.cam = null;
+    this.noQuiz = diff === 'imposible';
+    if (this.noQuiz) { L.chests.forEach(c => L.guns.push({ x: c.x, y: c.y - 10, type: pick(['minigun', 'dynamite', 'sniper']), alive: true, t: 0 })); L.crates.forEach(c => L.hearts.push({ x: c.x, y: c.y, alive: true, t: 0 })); L.chests = []; L.crates = []; }   // Imposible: no Spanish questions
     const U = Save.get('unlocks', {});
     World.allies = []; for (let i = 0; i < this.D.allies + (U.army ? 3 : 0); i++) this.addAlly(L.spawns[0][0] + i * 40);
     G.players.forEach(p => { if (U.mg) p.gun = { ...GUNS.machinegun, key: 'machinegun' }; if (U.armor) p.armor = 100; });
@@ -345,6 +347,7 @@ const Master = {
   },
   dropItem() { // weapons, crates (packet questions) and chests (type the verb) fall from the sky
     const L = World.L, x = irand(2 * CW, 7 * CW) * T, r = Math.random(), y = FLOOR_Y - irand(1, 6) * T;
+    if (this.noQuiz) { L.guns.push({ x, y, type: pick(['minigun', 'machinegun', 'dynamite', 'machete', 'shotgun', 'sniper', 'bomb', 'boomerang']), alive: true, t: 0, once: true }); L.hearts.push({ x: x + 200, y, alive: true, t: 0 }); return; }
     if (r < .45) L.guns.push({ x, y, type: pick(['minigun', 'machinegun', 'dynamite', 'machete', 'shotgun', 'sniper', 'bomb', 'boomerang']), alive: true, t: 0, once: true });
     else if (r < .75) L.crates.push({ x, y, type: Math.random() < .5 ? 'q' : 'p', alive: true, t: 0 });
     else L.chests.push({ x, y, alive: true, t: 0 });
