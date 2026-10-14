@@ -78,6 +78,7 @@ const World = {
     Object.assign(p, { dead: 3 * FPS, vx: 0, vy: 0, stun: 0, on: null });
   },
   killMob(m, by) {
+    if (m.carry && this.events.dropFlag) this.events.dropFlag(m);
     if (m.t === 's' || m.t === 'g') { m.hp = 0; m.dead = -1; this.burst(m.x + m.w / 2, m.y + m.h / 2, m.t === 'g' ? PAL.sand : PAL.maroon, m.t === 'g' ? 70 : 14, m.t === 'g' ? 16 : 7); Sound.sfx(m.t === 'g' ? 'boom' : 'hit'); if (by) { by.score += m.t === 'g' ? 500 : 40; by.ko++; } if (this.events.reward) this.events.reward(m, by); if (m.t === 'g') this.shake = 25; return; }
     m.hp = 0; m.dead = m.t === 'b' ? -1 : 8 * FPS; this.burst(m.x + m.w / 2, m.y + m.h / 2, m.t === 'b' ? PAL.sand : PAL.maroon, m.t === 'b' ? 60 : 16, m.t === 'b' ? 14 : 8);
     if (by) by.score += m.t === 'b' ? 300 : 30; Sound.sfx(m.t === 'b' ? 'boom' : 'hit');
@@ -133,10 +134,13 @@ const World = {
     } else for (const x of xs) if (solid(x, p.y)) { p.y = (Math.floor(p.y / T) + 1) * T; p.vy = 0; break; }
     if (p.ground) p.jumps = 0;
   },
+  // if a body ends up inside a wall (a moving map, a closing cover...), pop it out
+  unstick(b, L) { const inWall = () => [b.x + 4, b.x + b.w - 4].some(x => [b.y + 6, b.y + b.h / 2, b.y + b.h - 6].some(y => tileAt(L, x, y) === TL.solid)); let n = 0; while (inWall() && n++ < 14) b.y -= T / 2; if (n) b.vy = 0; },
   holeAhead(b, dir) { const x = b.x + b.w / 2 + dir * (b.w / 2 + 14), y = b.y + b.h + 6, t = tileAt(this.L, x, y), t2 = tileAt(this.L, x, y + T); return t !== TL.solid && t !== TL.plat && t2 !== TL.solid && t2 !== TL.plat; },
   // the Liberating Army of the South: helpers that walk and shoot enemies
   updateAllies() {
     const L = this.L;
+    if (this.events.allyAI) { for (const a of this.allies) this.events.allyAI(a); return; }
     for (const a of this.allies) {
       if (a.dead < 0) continue;
       if (a.dead > 0) { if (--a.dead === 0) Object.assign(a, { x: L.spawns[1][0], y: L.spawns[1][1], hp: 60, vx: 0, vy: 0 }); continue; }
@@ -201,6 +205,7 @@ const World = {
       p.walk += Math.abs(p.vx) * .07; if (p.squash > 0) p.squash--; if (p.stretch > 0) p.stretch--;
       if (!p.climb) p.vy = Math.min(p.vy + (p.vy < 0 ? .62 : .9), 15);
       const wasG = p.ground, fallV = p.vy, prevB = p.y + p.h; this.moveBody(p, L);
+      this.unstick(p, L);
       if (p.ground && !wasG && fallV > 4) { p.squash = 9; this.dust(p, 6); Sound.sfx('step'); }
       if (p.ground && Math.abs(p.vx) > 4 && this.tick % 9 === 0) this.dust(p, 2);
       for (const pd of L.pads) if (p.x + p.w > pd.x && p.x < pd.x + T && p.y + p.h >= pd.y - 14 && p.y + p.h <= pd.y + 2 && p.vy >= 0) { p.vy = -25; p.jumps = 1; p.on = null; p.ground = false; p.padT = 45; pd.t = 12; Sound.sfx('pad'); }

@@ -103,6 +103,11 @@ function drawWorld(g, c, vw) {
   if (L.ammo) { const a = L.ammo; g.fillStyle = PAL.ink; g.fillRect(a.x - 34, a.y - 46, 68, 34); g.fillStyle = '#6a5a3a'; g.fillRect(a.x - 31, a.y - 43, 62, 28); g.fillStyle = PAL.sand; for (let i = 0; i < 5; i++) g.fillRect(a.x - 26 + i * 11, a.y - 52, 6, 12); for (const wx of [a.x - 20, a.x + 20]) { g.fillStyle = PAL.ink; g.fillRect(wx - 8, a.y - 14, 16, 14); } box(g, a.x - 50, a.y - 84, 100, 22, PAL.ink); txt(g, 'MUNICIÓN', a.x, a.y - 67, 9, PAL.sand, 'center'); }
   if (L.shop) { const s = L.shop; g.fillStyle = PAL.ink; g.fillRect(s.x - 54, s.y - 96, 108, 96); g.fillStyle = PAL.dirt2; g.fillRect(s.x - 50, s.y - 60, 100, 60); for (let i = 0; i < 6; i++) { g.fillStyle = i % 2 ? PAL.cream : PAL.red; g.fillRect(s.x - 54 + i * 18, s.y - 96, 18, 22); } g.fillStyle = PAL.sun; g.fillRect(s.x - 10, s.y - 50, 20, 14); box(g, s.x - 44, s.y - 124, 88, 22, PAL.ink); txt(g, 'TIENDA', s.x, s.y - 107, 9, PAL.sand, 'center'); }
   if (L.trap) { const tx = L.trap.c0 * T; if (!L.trap.open) { g.fillStyle = PAL.ink; g.fillRect(tx - 2, FLOOR_Y - 2, 2 * T + 4, 10); g.fillStyle = PAL.dirt2; for (let i = 0; i < 4; i++) g.fillRect(tx + i * 18, FLOOR_Y, 14, 6); } }
+  if (L.flags) for (const f of Object.values(L.flags)) { const x = Math.round(f.x), y = Math.round(f.y), us = f.side === 'us';
+    if (f.home) { g.fillStyle = PAL.ink; g.fillRect(x - 16, y - 8, 32, 8); }
+    g.fillStyle = PAL.ink; g.fillRect(x - 2, y - 96, 5, 96 - (f.carrier ? 40 : 0));
+    const cols = us ? ['#2eb082', '#fbf1e3', '#d95763'] : ['#2b3a5a', '#2b3a5a', '#d8b060'], fy = y - 96;
+    g.fillStyle = PAL.ink; g.fillRect(x + 2, fy - 2, 46, 32); cols.forEach((c2, i) => { g.fillStyle = c2; g.fillRect(x + 4 + i * 14, fy, 14, 28); }); }
   for (const c of L.cages || []) { if (!c.alive) continue; drawChar(g, 'campesino', c.x, c.y, 2.3, -1, 0); g.fillStyle = PAL.ink; g.fillRect(c.x - 34, c.y - 80, 68, 8); for (let i = 0; i < 7; i++) g.fillRect(c.x - 32 + i * 11, c.y - 76, 4, 76); g.fillRect(c.x - 34, c.y - 4, 68, 4); }
   if (L.prison) { const P = L.prison; g.fillStyle = 'rgba(43,47,61,.35)'; g.fillRect(P.x0, P.y - 5 * T, P.x1 - P.x0, 5 * T); }
   for (const a of World.allies || []) if (!a.dead) drawChar(g, 'soldado', a.x + a.w / 2, a.y + a.h, 2.5, a.face, !a.ground ? 4 : Math.abs(a.vx) > .5 ? walkFrame(Math.floor(a.walk)) : 0, a.inv > 0 && (a.inv >> 2) % 2 ? .5 : 1);
@@ -171,8 +176,7 @@ function drawDarkness(g, c, vw) {
   const glow = (x, y, r, a = 1) => { const [sx, sy] = S(x, y), R = r * c.z; if (sx < -R || sx > vw + R || sy < -R || sy > H + R) return; const gr = d.createRadialGradient(sx, sy, R * .1, sx, sy, R); gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); d.fillStyle = gr; d.fillRect(sx - R, sy - R, 2 * R, 2 * R); };
   const beam = (x, y, ang, r, spread) => { const [sx, sy] = S(x, y), R = r * c.z; const gr = d.createRadialGradient(sx, sy, 10, sx, sy, R); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(.75, 'rgba(0,0,0,.85)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); d.fillStyle = gr; d.beginPath(); d.moveTo(sx, sy); d.arc(sx, sy, R, ang - spread, ang + spread); d.closePath(); d.fill(); };
   for (const p of World.players) { if (p.dead) continue; const hx = p.x + p.w / 2, hy = p.y + 18;
-    const ang = p.climb ? (p.vy < 0 ? -Math.PI / 2 : Math.PI / 2) : p.face > 0 ? 0.08 : Math.PI - 0.08;
-    glow(hx, p.y + p.h / 2, 85, .95); beam(hx, hy, ang, 400, .42); }
+    glow(hx, p.y + p.h / 2, 210, 1); }
   for (const a of World.allies || []) if (!a.dead) glow(a.x + a.w / 2, a.y + 24, 70, .7);
   for (const dc of L.decor) if (dc.k === 'torch') glow(dc.x, dc.y - 46, 150 + Math.sin(World.tick / 6 + dc.x) * 8, .9);
   for (const s of World.shots) glow(s.x, s.y, s.bomb ? 70 : 34, .6);

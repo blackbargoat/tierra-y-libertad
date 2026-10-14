@@ -17,6 +17,7 @@ const PHASES = [
   { boss: { who: 'diaz', name: 'PORFIRIO DÍAZ', hp: 120, armor: 45 }, es: 'Fase 3: el dictador Porfirio Díaz', en: 'Phase 3: the dictator Porfirio Díaz' },
 ];
 // platform shapes the middle of the arena can turn into (relative to a 20-wide chunk, rows above the floor)
+// (all shapes use one-way platforms only, so nobody can get stuck inside a wall)
 const SHAPES = {
   stairs:  c => { const o = []; for (let i = 0; i < 6; i++) o.push([2 + i * 3, 21 - i * 3, 3]); return o; },
   pyramid: c => [[3, 20, 14], [5, 17, 10], [7, 14, 6], [9, 11, 2]].map(([x, y, w]) => [x, y, w, true]),
@@ -73,9 +74,8 @@ function buildMaster() {
   for (let r = 17; r <= 22; r++) { set(px0, r, TL.solid); set(px1, r, TL.solid); }
   for (let c = px0; c <= px1; c++) set(c, 16, TL.solid);
   L.prison = { x0: (px0 + 1) * T, x1: px1 * T, door: px0 * T, y: FLOOR_Y };
-  for (let i = 0; i < 4; i++) { set(px0 - 6 + i, 22 - i, TL.solid); set(px1 + 5 - i, 22 - i, TL.solid); }   // steps on both sides of the prison
+  for (let i = 0; i < 6; i++) for (let r = 22 - i; r <= 22; r++) { set(px0 - 6 + i, r, TL.solid); set(px1 + 6 - i, r, TL.solid); }   // full staircases over the prison on both sides
   // our base (left): flag and two machine guns
-  L.decor.push({ k: 'flag', x: 2 * T, y: FLOOR_Y });
   L.turrets = [{ x: 6 * T, y: FLOOR_Y, ang: -0.15, user: null, cd: 0 }, { x: 13 * T, y: FLOOR_Y, ang: -0.3, user: null, cd: 0 }, { x: Math.floor(MCOLS / 2) * T, y: FLOOR_Y, ang: -0.4, user: null, cd: 0 }];
   buildMaze(L, set, px0);
   // our base: weapon rack, ammo cart and the shop
@@ -84,8 +84,10 @@ function buildMaster() {
   // armored cart with a cannon and a minigun, parked at our base
   L.carts = [{ x: 9 * T, y: FLOOR_Y - 60, w: 110, h: 60, vx: 0, vy: 0, face: 1, hp: 2200, hpMax: 2200, driver: null, cd: 0, ccd: 0, dead: 0, wheel: 0, home: 9 * T }];
   L.morph = { c0: 1, c1: 6 };   // chunks that reshape
+  L.flags = { us: { hx: 2 * T, hy: FLOOR_Y, x: 2 * T, y: FLOOR_Y, carrier: null, home: true, side: 'us' }, them: { hx: (px0 - 12) * T, hy: FLOOR_Y, x: (px0 - 12) * T, y: FLOOR_Y, carrier: null, home: true, side: 'them' } };
+  L.caps = { us: 0, them: 0 };
   L.spawns = [[3 * T, FLOOR_Y - 56], [4 * T + 20, FLOOR_Y - 56], [6 * T, FLOOR_Y - 56]];
-  L.enemySpawn = (px0 - 9) * T;
+  L.enemySpawn = (px0 - 16) * T;
   L.cages = []; L.mobs = []; L.allies = 0; L.orbSpots = [];
   return L;
 }
@@ -119,20 +121,20 @@ const Master = {
     const b = { t: 'g', ...P.boss, hp: Math.round(P.boss.hp * m), hpMax: Math.round(P.boss.hp * m), armor: Math.round(P.boss.armor * m), armorMax: Math.round(P.boss.armor * m), x: World.L.enemySpawn, y: FLOOR_Y - 220, w: 110, h: 220, vx: 0, vy: 0, face: -1, cd: 120, stompT: 5 * FPS, callT: 10 * FPS, dead: 0, flash: 0, ground: false };
     World.mobs.push(b); this.boss = b; msg(`${P.es}. ¡Viene ${P.boss.name}!`);
   },
-  addAlly(x) { World.allies.push({ k: World.allies.length % 4, x, y: FLOOR_Y - 57, w: 28, h: 56, vx: 0, vy: 0, face: 1, hp: 60, cd: 20, dead: 0, inv: 60, walk: 0, perm: true }); },
+  addAlly(x) { const k = World.allies.length; World.allies.push({ side: 'us', role: ['asalto', 'defensor', 'francotirador', 'explorador'][k % 4], think: 0, k: k % 4, x, y: FLOOR_Y - 57, w: 28, h: 56, vx: 0, vy: 0, face: 1, hp: 60, cd: 20, dead: 0, inv: 60, walk: 0, perm: true }); },
   addCage() { const L = World.L, c = irand(L.morph.c0 * CW + 2, (L.morph.c1 + 1) * CW - 3); L.cages.push({ x: c * T + T / 2, y: FLOOR_Y, hp: 3, alive: true }); },
-  addEnemy(x) { const D = this.D; World.mobs.push({ t: 's', x: x + Math.random() * 120, y: FLOOR_Y - 57, w: 28, h: 56, vx: 0, vy: 0, face: -1, hp: D.eHp, hpMax: D.eHp, cd: irand(20, D.eFire), dead: 0, flash: 0, armor: 0, walk: 0 }); },
+  addEnemy(x) { const D = this.D, r = Math.random(); World.mobs.push({ side: 'them', role: r < .4 ? 'asalto' : r < .65 ? 'soldado' : r < .82 ? 'defensor' : 'francotirador', think: 0, t: 's', x: x + Math.random() * 120, y: FLOOR_Y - 57, w: 28, h: 56, vx: 0, vy: 0, face: -1, hp: D.eHp, hpMax: D.eHp, cd: irand(20, D.eFire), dead: 0, flash: 0, armor: 0, walk: 0 }); },
   // ---- the arena changes shape ----
   morph(first) {
     const L = World.L, g = L.grid, names = Object.keys(SHAPES);
     for (let cx = L.morph.c0; cx <= L.morph.c1; cx++) {
       for (let r = 3; r < FLOOR_ROW; r++) for (let c = cx * CW; c < (cx + 1) * CW; c++) g.t[r * g.cols + c] = TL.air;
-      for (const [x, y, w, solid] of SHAPES[pick(names)](cx)) for (let i = 0; i < w; i++) { const c = cx * CW + x + i; if (y < FLOOR_ROW && c < g.cols) g.t[y * g.cols + c] = solid ? TL.solid : TL.plat; }
+      for (const [x, y, w] of SHAPES[pick(names)](cx)) for (let i = 0; i < w; i++) { const c = cx * CW + x + i; if (y < FLOOR_ROW && c < g.cols) g.t[y * g.cols + c] = TL.plat; }
     }
     L.movers = [];
     for (let i = 0; i < 4; i++) { const cx = irand(L.morph.c0, L.morph.c1); L.movers.push({ x: cx * CW * T + irand(2, 12) * T, y: irand(6, 18) * T, w: 5 * T, bw: 5 * T, ax: irand(0, 1) ? 4 * T : 0, ay: 0, T: 3 + Math.random() * 2, pulse: true, ps: 1 + Math.random(), ph: Math.random() * 6 }); }
     // push anyone stuck inside a new block up to free air
-    const free = b => { let n = 0; while (n++ < 30 && [b.x + 3, b.x + b.w - 3].some(x => tileAt(L, x, b.y + b.h - 2) === TL.solid || tileAt(L, x, b.y + 4) === TL.solid)) b.y -= T; };
+    const free = b => World.unstick(b, L);
     [...World.players, ...World.allies, ...World.mobs].forEach(b => { if (!b.dead && b.t !== 'f') free(b); });
     if (!first) { Sound.sfx('morph'); World.shake = 12; msg('¡El campo de batalla cambia!'); }
   },
@@ -167,6 +169,7 @@ const Master = {
     Battle.resume = () => { Battle.resume = orig; G.scene = this; closePanel(); clearPressed(); for (const k in keys) keys[k] = false; this.paused = false; if (Battle.cq && Battle.cq.typed && Battle.cq.done && $('cres') && /Ganas|Perfecto|Bien/.test($('cres').textContent)) { this.addAlly(p.x); this.addAlly(p.x + 30); msg('Premio extra: 2 soldados nuevos'); } }; },
   // ---- AI for soldiers and ground bosses ----
   ai(m) {
+    if (m.t === 's') return this.brain(m);
     const L = World.L, D = this.D, cx = m.x + m.w / 2, cy = m.y + m.h / 2;
     if (m.flash > 0) m.flash--;
     const targets = [...G.players.filter(p => !p.dead && !p.jail), ...World.allies.filter(a => !a.dead)];
@@ -191,7 +194,7 @@ const Master = {
     if (m.t === 'g') {
       if (--m.stompT <= 0 && m.ground) { m.vy = -16; m.stomping = true; m.stompT = (m.hp < m.hpMax / 2 ? 4 : 6) * FPS; }
       if (m.stomping && m.ground && !wasG && fall > 4) { m.stomping = false; Sound.sfx('stomp'); World.shake = 18; for (const d of [-1, 1]) for (let k = 0; k < 3; k++) World.shots.push({ x: cx + d * (40 + k * 30), y: FLOOR_Y - 16, vx: d * (6 + k), vy: 0, o: null, enemy: true, l: 90, dmg: 25, wave: true }); }
-      if (--m.callT <= 0) { m.callT = 9 * FPS; for (let i = 0; i < (this.diff === 'imposible' ? 4 : 2); i++) this.addEnemy(m.x - 60 + i * 40); msg(`${m.name} llama a su ejército`); }
+      if (--m.callT <= 0 && World.mobs.filter(x => x.t === 's' && !x.dead).length < this.D.maxEnemies * 1.4) { m.callT = 9 * FPS; for (let i = 0; i < (this.diff === 'imposible' ? 4 : 2); i++) this.addEnemy(m.x - 60 + i * 40); msg(`${m.name} llama a su ejército`); }
     }
   },
   setTrap(open) { const L = World.L, g = L.grid; for (let r = 23; r <= 26; r++) { g.t[r * g.cols + L.trap.c0] = open ? TL.ladder : TL.solid; g.t[r * g.cols + L.trap.c1] = open ? TL.air : TL.solid; } L.trap.open = open ? 15 * FPS : 0; if (open) { Sound.sfx('boom'); World.shake = 8; msg('¡El túnel está abierto! Bajen por el hueco.'); } },
@@ -207,6 +210,73 @@ const Master = {
   },
   buy(i) { const x = SHOP[i], p = this.shopP; if (!x || this.wallet < x.cost) { Sound.sfx('wrong'); return; } this.addCoins(-x.cost); x.f(p, this); Sound.sfx('recruit'); $('panel').innerHTML = this.shopHtml(); },
   closeShop() { closePanel(); clearPressed(); for (const k in keys) keys[k] = false; this.paused = false; },
+  // ===== unit brains (both armies) =====
+  // roles: asalto = steal the enemy flag, defensor = guard our flag, francotirador = shoot from far,
+  //        explorador = free cages and prisoners, soldado = fight whoever is near
+  foesOf(u) { return u.side === 'us' ? World.mobs.filter(m => !m.dead) : [...G.players.filter(p => !p.dead && !p.jail), ...World.allies.filter(a => !a.dead)]; },
+  los(x0, y0, x1, y1) { const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 18); for (let i = 1; i < n; i++) if (tileAt(World.L, x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n) === TL.solid) return false; return true; },
+  brain(u) {
+    const L = World.L, D = this.D, us = u.side === 'us', cx = u.x + u.w / 2, cy = u.y + 22;
+    if (u.flash > 0) u.flash--; if (u.inv > 0) u.inv--; if (u.cd > 0) u.cd--;
+    const role = u.role, range = { asalto: 430, defensor: 480, francotirador: 900, explorador: 380, soldado: 460 }[role];
+    const own = us ? L.flags.us : L.flags.them, theirs = us ? L.flags.them : L.flags.us;
+    // think about 1-2 times a second: pick where to go
+    if (--u.think <= 0) {
+      u.think = 40 + irand(0, 40);
+      const foes = this.foesOf(u), near = foes.filter(f => Math.abs(f.x - cx) < 700 && Math.abs(f.y - u.y) < 260);
+      if (u.carry) u.gx = own.hx;                                                         // bring the flag home
+      else if (own.carrier) u.gx = own.carrier.x;                                         // chase whoever took our flag
+      else if (!own.home && Math.abs(own.x - cx) < 900) u.gx = own.x;                     // pick our dropped flag back up
+      else if (role === 'asalto') u.gx = theirs.carrier ? theirs.carrier.x : theirs.x;
+      else if (role === 'defensor') u.gx = near.length && Math.abs(near[0].x - own.hx) < 700 ? near[0].x : own.hx + (us ? 240 : -240) + Math.sin((u.k || 0) + this.t / 200) * 120;
+      else if (role === 'francotirador') { const f = near.sort((a, b) => Math.abs(a.x - cx) - Math.abs(b.x - cx))[0]; u.gx = f ? f.x - Math.sign(f.x - cx || 1) * 620 : cx + (us ? 200 : -200); }
+      else if (role === 'explorador') { const jail = G.players.some(p => p.jail), cage = L.cages.filter(c => c.alive).sort((a, b) => Math.abs(a.x - cx) - Math.abs(b.x - cx))[0]; u.gx = jail ? L.prison.door - 40 : cage ? cage.x : theirs.x; }
+      else u.gx = near.length ? near[0].x : (us ? L.flags.them.x : L.flags.us.x);
+      u.gx = clamp(u.gx, 20, L.w - 40);
+    }
+    // move toward the goal; jump walls, holes, and up to platforms
+    const dx = u.gx - cx, dir = Math.abs(dx) > 24 ? Math.sign(dx) : 0, sp = role === 'francotirador' ? 2.4 : role === 'asalto' || role === 'explorador' ? 3.6 : 3;
+    if (dir) { u.vx = clamp(u.vx + dir * .9, -sp, sp); if (!u.aimT) u.face = dir; } else u.vx *= .7;
+    u.vy = Math.min(u.vy + (u.vy < 0 ? .62 : .9), 15);
+    const wasWall = u.wall; World.moveBody(u, L); World.unstick(u, L);
+    if (dir && u.ground && (u.wall || wasWall || World.holeAhead(u, dir))) u.vy = -12.8;
+    u.walk = (u.walk || 0) + Math.abs(u.vx) * .07; if (u.aimT > 0) u.aimT--;
+    if (u.y > L.h) { u.hp = 0; }
+    // explorers open cages they reach
+    if (us && role === 'explorador') for (const c of L.cages) if (c.alive && Math.abs(c.x - cx) < 40 && Math.abs(c.y - (u.y + u.h)) < 50) this.openCage(c);
+    // shoot only at what is in range and in sight
+    if (u.cd <= 0) {
+      const tg = this.foesOf(u).filter(f => { const fx = f.x + f.w / 2, fy = f.y + Math.min(30, f.h / 2); return Math.hypot(fx - cx, fy - cy) < range && this.los(cx, cy, fx, fy); }).sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy))[0];
+      if (tg) {
+        const sniper = role === 'francotirador', fx = tg.x + tg.w / 2, fy = tg.y + Math.min(30, tg.h / 2), ang = Math.atan2(fy - cy, fx - cx) + (Math.random() - .5) * (sniper ? .04 : .2), v = sniper ? 17 : 11;
+        u.face = Math.sign(fx - cx) || u.face; u.aimT = 20;
+        const shot = { x: cx + u.face * 16, y: cy, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, l: Math.ceil(range / v) + 4, o: null };
+        if (us) World.shots.push({ ...shot, ally: true, w: { dmg: sniper ? 3 : 1, pdmg: 0 } }); else World.shots.push({ ...shot, enemy: true, dmg: Math.round(D.eDmg * (sniper ? 2 : 1)) });
+        u.cd = Math.round((sniper ? 110 : role === 'defensor' ? 48 : 42) * (us ? 1 : D.eFire / 75)) + irand(0, 12); Sound.sfx('shoot');
+      }
+    }
+  },
+  allyAI(a) { if (a.dead) return; this.brain(a); if (a.hp <= 0) { World.burst(a.x + 14, a.y + 28, PAL.cream, 12, 7); a.dead = -1; this.dropFlag(a); } },
+  // ===== capture the flag =====
+  dropFlag(u) { for (const f of Object.values(World.L.flags)) if (f.carrier === u) { f.carrier = null; f.x = u.x + u.w / 2; let y = Math.min(u.y + u.h, World.L.h - T); while (y < World.L.h - T && tileAt(World.L, f.x, y + 2) !== TL.solid && tileAt(World.L, f.x, y + 2) !== TL.plat) y += 6; f.y = Math.floor((y + 2) / T) * T; f.dropT = 25 * FPS; u.carry = null; msg(f.side === 'us' ? 'Recuperen nuestra bandera' : 'La bandera federal está en el suelo'); } },
+  flags() {
+    const L = World.L, F = L.flags;
+    const usUnits = [...G.players.filter(p => !p.dead && !p.jail), ...World.allies.filter(a => !a.dead)], themUnits = World.mobs.filter(m => !m.dead && m.t === 's');
+    for (const f of Object.values(F)) {
+      if (f.carrier) { const c = f.carrier; if (c.dead || c.jail || c.hp <= 0) this.dropFlag(c); else { f.x = c.x + c.w / 2; f.y = c.y; } continue; }
+      const mine = f.side === 'us' ? usUnits : themUnits, enemy = f.side === 'us' ? themUnits : usUnits, touch = u => Math.abs(u.x + u.w / 2 - f.x) < 34 && Math.abs(u.y + u.h - f.y) < 70;
+      if (!f.home && --f.dropT <= 0) { Object.assign(f, { x: f.hx, y: f.hy, home: true }); continue; }
+      if (!f.home) { const r = mine.find(touch); if (r) { Object.assign(f, { x: f.hx, y: f.hy, home: true }); Sound.sfx('open'); msg(f.side === 'us' ? '¡Bandera recuperada!' : 'Los federales recuperaron su bandera'); continue; } }
+      const thief = enemy.find(u => !u.carry && touch(u)); if (thief) { f.carrier = thief; f.home = false; thief.carry = f; Sound.sfx('horn'); msg(f.side === 'us' ? '¡Los federales se llevan nuestra bandera!' : `¡${thief.name || 'Un zapatista'} tiene la bandera federal!`); }
+    }
+    // scoring: a carrier reaching their own flag at home
+    for (const [side, f] of Object.entries(F)) { const c = f.carrier; if (!c) continue; const home = side === 'us' ? F.them : F.us;
+      if (home.home && Math.abs(c.x + c.w / 2 - home.hx) < 50 && Math.abs(c.y + c.h - home.hy) < 80) {
+        c.carry = null; Object.assign(f, { carrier: null, x: f.hx, y: f.hy, home: true });
+        if (side === 'them') { L.caps.us++; this.addCoins(50); const b = this.boss; if (b) { b.armor = 0; b.cd = 300; b.stompT = 8 * FPS; } Sound.sfx('recruit'); World.shake = 10; msg('¡Capturamos la bandera federal! El jefe pierde su armadura.'); }
+        else { L.caps.them++; for (let i = 0; i < 4; i++) if (World.mobs.filter(x => x.t === 's' && !x.dead).length < this.D.maxEnemies * 2) this.addEnemy(L.enemySpawn + i * 30); if (this.boss) this.boss.hp = Math.min(this.boss.hpMax, this.boss.hp + Math.round(this.boss.hpMax * .2)); Sound.sfx('jail'); msg('Los federales capturaron nuestra bandera. Llegan refuerzos.'); }
+      } }
+  },
   // ---- per frame ----
   update() {
     if (this.paused || this.over) return;
@@ -249,7 +319,7 @@ const Master = {
       else if ((keys[k.f] || keys[k.su] || keys[k.sl] || keys[k.sr]) && --t.cd <= 0) { t.cd = 5; const a = t.ang + (Math.random() - .5) * .06; World.shots.push({ x: t.x + Math.cos(a) * 40, y: t.y - 40 + Math.sin(a) * 40, vx: Math.cos(a) * 16, vy: Math.sin(a) * 16, o: p, l: 70, w: { dmg: 2, pdmg: 0 }, pellet: true, turret: true }); Sound.sfx('mg'); }
       pressed[k.j] = false; pressed[k.f] = false;
     }
-    World.update();
+    World.update(); this.flags();
     // prison: jailed players stay inside; timer frees them in solo / normal team play
     for (const p of G.players) if (p.jail) {
       if (p.y + p.h > FLOOR_Y + 8) { p.jail = 0; p.inv = 120; p.digT = 0; msg(`${p.name} escapó por el túnel`); Sound.sfx('recruit'); continue; }
@@ -284,7 +354,7 @@ const Master = {
     const b = this.boss, armyA = World.allies.filter(a => !a.dead).length, armyE = World.mobs.filter(m => m.t === 's' && !m.dead).length;
     $('qlv').textContent = `Nivel Maestro · ${this.D.label} · Fase ${this.phase + 1} / 3`;
     $('qq').textContent = b ? `${b.name}: ${Math.max(0, b.hp)} / ${b.hpMax}${b.armor > 0 ? ' · armadura ' + b.armor : ''}` : 'Prepárate';
-    $('qa').innerHTML = `<span class="a">Tu ejército: ${armyA}</span><span class="a">Federales: ${armyE}</span><span class="a">${G.players.length === 1 ? `Capturas: ${this.caps} / ${this.diff === 'imposible' ? 2 : 3}` : `Presos: ${G.players.filter(p => p.jail).length}`}</span><span class="a">Cambio en: ${Math.ceil(Math.max(0, this.morphT) / FPS)}s</span><span class="a">Monedas: ${this.wallet}</span>`;
+    $('qa').innerHTML = `<span class="a">Tu ejército: ${armyA}</span><span class="a">Federales: ${armyE}</span><span class="a">${G.players.length === 1 ? `Capturas: ${this.caps} / ${this.diff === 'imposible' ? 2 : 3}` : `Presos: ${G.players.filter(p => p.jail).length}`}</span><span class="a">Cambio en: ${Math.ceil(Math.max(0, this.morphT) / FPS)}s</span><span class="a">Banderas ${World.L.caps.us} - ${World.L.caps.them}</span><span class="a">Monedas: ${this.wallet}</span>`;
     $('qtime').textContent = '';
   },
   win() {
@@ -300,7 +370,7 @@ const Master = {
   },
   draw() { renderWorld(G.split); },
 };
-const MEV = { msg, interact() {}, note() {}, letter() {}, orb() {}, freeAll: by => Master.freeAll(by), coin: (p, v) => Master.coin(p, v), reward: m => Master.reward(m),
+const MEV = { dropFlag: u => Master.dropFlag(u), allyAI: a => Master.allyAI(a), msg, interact() {}, note() {}, letter() {}, orb() {}, freeAll: by => Master.freeAll(by), coin: (p, v) => Master.coin(p, v), reward: m => Master.reward(m),
   crate: (p, c) => Master.crate(p, c), chest: (p, c) => Master.chest(p, c), use: p => Master.use(p), captured: (p, by) => Master.captured(p, by), ai: m => Master.ai(m) };
 const MasterMenu = {
   open() {
