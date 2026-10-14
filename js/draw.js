@@ -159,6 +159,26 @@ function drawHUD(g, p, x, y, w) {
     txt(g, p.jail ? 'Preso: S = cavar' : p.cart ? 'Carreta' : p.turret ? 'Ametralladora' : p.lock > 0 ? `Espera ${Math.ceil(p.lock / FPS)}` : `Racha ${p.streak}`, x + w - 10, y + 64, 13, p.lock > 0 ? PAL.red : PAL.sand, 'right');
   }
 }
+// underground is pitch black: only flashlights, lanterns, torches and gunfire light it up
+const darkC = document.createElement('canvas'); darkC.width = W; darkC.height = H;
+function drawDarkness(g, c, vw) {
+  const yDark = Math.round((FLOOR_Y + 10 - c.y) * c.z); if (yDark >= H) return;
+  const d = darkC.getContext('2d'), L = World.L; d.globalCompositeOperation = 'source-over'; d.clearRect(0, 0, vw, H);
+  const grad = d.createLinearGradient(0, yDark, 0, yDark + 40 * c.z); grad.addColorStop(0, 'rgba(6,5,12,0)'); grad.addColorStop(1, 'rgba(6,5,12,.97)');
+  d.fillStyle = grad; d.fillRect(0, yDark, vw, 40 * c.z); d.fillStyle = 'rgba(6,5,12,.97)'; d.fillRect(0, yDark + 40 * c.z - 1, vw, H);
+  d.globalCompositeOperation = 'destination-out';
+  const S = (x, y) => [(x - c.x) * c.z, (y - c.y) * c.z];
+  const glow = (x, y, r, a = 1) => { const [sx, sy] = S(x, y), R = r * c.z; if (sx < -R || sx > vw + R || sy < -R || sy > H + R) return; const gr = d.createRadialGradient(sx, sy, R * .1, sx, sy, R); gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); d.fillStyle = gr; d.fillRect(sx - R, sy - R, 2 * R, 2 * R); };
+  const beam = (x, y, ang, r, spread) => { const [sx, sy] = S(x, y), R = r * c.z; const gr = d.createRadialGradient(sx, sy, 10, sx, sy, R); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(.75, 'rgba(0,0,0,.85)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); d.fillStyle = gr; d.beginPath(); d.moveTo(sx, sy); d.arc(sx, sy, R, ang - spread, ang + spread); d.closePath(); d.fill(); };
+  for (const p of World.players) { if (p.dead) continue; const hx = p.x + p.w / 2, hy = p.y + 18;
+    const ang = p.climb ? (p.vy < 0 ? -Math.PI / 2 : Math.PI / 2) : p.face > 0 ? 0.08 : Math.PI - 0.08;
+    glow(hx, p.y + p.h / 2, 85, .95); beam(hx, hy, ang, 400, .42); }
+  for (const a of World.allies || []) if (!a.dead) glow(a.x + a.w / 2, a.y + 24, 70, .7);
+  for (const dc of L.decor) if (dc.k === 'torch') glow(dc.x, dc.y - 46, 150 + Math.sin(World.tick / 6 + dc.x) * 8, .9);
+  for (const s of World.shots) glow(s.x, s.y, s.bomb ? 70 : 34, .6);
+  for (const q of World.parts) if (!q.dust && q.l > 18) glow(q.x, q.y, 26, .3);
+  g.drawImage(darkC, 0, 0, vw, H, 0, 0, vw, H);
+}
 function renderWorld(split) {
   const L = World.L, ps = World.players, n = ps.length, sp = split && n > 1;
   const views = sp ? ps.map((p, i) => ({ x0: Math.round(i * W / n), w: Math.round(W / n), p })) : [{ x0: 0, w: W, p: null }];
@@ -169,6 +189,7 @@ function renderWorld(split) {
     drawBackground(ctx, L.theme, c.x, v.w, c.y);
     ctx.save(); if (World.shake) ctx.translate((Math.random() - .5) * World.shake, (Math.random() - .5) * World.shake);
     ctx.scale(c.z, c.z); ctx.translate(-Math.round(c.x), -Math.round(c.y)); drawWorld(ctx, c, v.w); ctx.restore();
+    drawDarkness(ctx, c, v.w);
     // arrows to answer orbs that are off this screen
     for (const o of World.orbs) {
       if (!o.alive) continue; const sx = (o.x - c.x) * c.z, sy = (o.y - c.y) * c.z; if (sx > 0 && sx < v.w && sy > 0 && sy < H) continue;
