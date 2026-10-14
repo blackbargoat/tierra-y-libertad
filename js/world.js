@@ -72,7 +72,7 @@ const CHUNKS = {
 
 function newGrid(cols) { return { cols, rows: ROWS, t: new Uint8Array(cols * ROWS) }; }
 // tile codes
-const TL = { air: 0, solid: 1, plat: 2, spike: 3 };
+const TL = { air: 0, solid: 1, plat: 2, spike: 3, ladder: 4 };
 function stamp(L, name, cx, layer) {
   const rows = CHUNKS[name], ox = cx * CW, oy = layer * CH;
   for (let r = 0; r < CH; r++) for (let c = 0; c < CW; c++) {

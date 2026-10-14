@@ -27,6 +27,42 @@ const SHAPES = {
   cross:   c => [[9, 9, 2, true], [9, 10, 2, true], [9, 11, 2, true], [9, 12, 2, true], [9, 13, 2, true], [4, 13, 12, true], [9, 14, 2, true], [9, 15, 2, true], [2, 19, 5], [13, 19, 5]],
 };
 
+// underground maze: 3 rows of rooms joined by tunnels and ladders, loot in every dead end
+function buildMaze(L, set, px0) {
+  const CWm = 6, NC = Math.floor((MCOLS - 4) / CWm), NR = 3, cx0 = 2, rowTop = r => 27 + r * 4, cellX = c => cx0 + c * CWm;
+  const seen = new Set(), adj = new Map(), key = (r, c) => r + ',' + c, link = (a, b) => { (adj.get(a) || adj.set(a, []).get(a)).push(b); (adj.get(b) || adj.set(b, []).get(b)).push(a); };
+  for (let r = 0; r < NR; r++) for (let c = 0; c < NC; c++) for (let y = 0; y < 3; y++) for (let x = 1; x <= 4; x++) set(cellX(c) + x, rowTop(r) + y, TL.air);
+  const stack = [[0, irand(0, NC - 1)]]; seen.add(key(...stack[0]));
+  while (stack.length) {
+    const [r, c] = stack[stack.length - 1], nb = shuf([[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]]).filter(([a, b]) => a >= 0 && a < NR && b >= 0 && b < NC && !seen.has(key(a, b)));
+    if (!nb.length) { stack.pop(); continue; }
+    const [a, b] = nb[0]; seen.add(key(a, b)); link(key(r, c), key(a, b)); stack.push([a, b]);
+  }
+  for (let k = 0; k < NC / 3; k++) { const r = irand(0, NR - 1), c = irand(0, NC - 2); link(key(r, c), key(r, c + 1)); }   // a few loops = more than one way
+  for (const [ka, list] of adj) for (const kb of list) {
+    const [r1, c1] = ka.split(',').map(Number), [r2, c2] = kb.split(',').map(Number);
+    if (r1 === r2) { const c = Math.min(c1, c2); for (let y = 0; y < 3; y++) { set(cellX(c) + 5, rowTop(r1) + y, TL.air); set(cellX(c) + 6, rowTop(r1) + y, TL.air); } }
+    else { const r = Math.min(r1, r2); for (let y = rowTop(r); y <= rowTop(r + 1) + 2; y++) set(cellX(c1) + 2, y, TL.ladder); set(cellX(c1) + 3, rowTop(r) + 3, TL.air); }
+  }
+  // entrances from the surface, each under a wooden cover
+  L.covers = [];
+  const entr = [7, 13, 19].map(c => Math.min(NC - 1, c));
+  for (const c of entr) { const x0 = cellX(c) + 2; for (let y = 23; y <= rowTop(0) + 2; y++) { set(x0, y, TL.ladder); if (y < rowTop(0)) set(x0 + 1, y, TL.air); } L.covers.push({ c0: x0, c1: x0 + 1, hp: 4, open: 0 }); L.decor.push({ k: 'sign', x: (x0 - 1) * T, y: FLOOR_Y }); }
+  L.covers.forEach(cv => { set(cv.c0, 23, TL.solid); set(cv.c1, 23, TL.solid); });
+  // the trapdoor into the prison
+  const tc = Math.floor((px0 + 3 - cx0) / CWm), t0 = cellX(tc) + 2; L.trap = { c0: t0, c1: t0 + 1, open: 0 };
+  for (let y = 23; y <= 26; y++) { set(t0, y, TL.solid); set(t0 + 1, y, TL.solid); } for (let y = 27; y <= 29; y++) set(t0, y, TL.ladder);
+  // loot in dead ends, coins along the tunnels
+  const loot = ['minigun', 'dynamite', 'sniper', 'machinegun', 'boomerang', 'machete', 'coins', 'coins', 'chest', 'crate', 'star', 'heart'];
+  for (const [k, list] of adj) { const [r, c] = k.split(',').map(Number), x = (cellX(c) + 3) * T, fy = (rowTop(r) + 3) * T;
+    if (list.length === 1 && !entr.includes(c) && c !== tc) { const it = pick(loot);
+      if (GUNS[it]) L.guns.push({ x, y: fy - 34, type: it, alive: true, t: 0 });
+      else if (it === 'coins') for (let i = 0; i < 5; i++) L.coins.push({ x: x - 60 + i * 30, y: fy - 30, got: false, v: 10 });
+      else if (it === 'chest') L.chests.push({ x, y: fy - 24, alive: true, t: 0 });
+      else if (it === 'crate' || it === 'star') L.crates.push({ x, y: fy - 30, type: it === 'star' ? 'p' : 'q', alive: true, t: 0 });
+      else L.hearts.push({ x, y: fy - 30, alive: true, t: 0 }); }
+    else if (Math.random() < .5) L.coins.push({ x, y: fy - 30, got: false, v: 5 }); }
+}
 function buildMaster() {
   const L = baseLevel('night', 8);
   for (let c = 0; c < 8; c++) { stamp(L, 'air', c, 0); stamp(L, 'gate', c, 1); stamp(L, 'solid', c, 2); }
@@ -41,16 +77,12 @@ function buildMaster() {
   // our base (left): flag and two machine guns
   L.decor.push({ k: 'flag', x: 2 * T, y: FLOOR_Y });
   L.turrets = [{ x: 6 * T, y: FLOOR_Y, ang: -0.15, user: null, cd: 0 }, { x: 13 * T, y: FLOOR_Y, ang: -0.3, user: null, cd: 0 }, { x: Math.floor(MCOLS / 2) * T, y: FLOOR_Y, ang: -0.4, user: null, cd: 0 }];
-  // secret tunnel: a hole in the middle of the map leads under the prison to a trapdoor
-  const te = 3 * CW + 10;
-  for (let r = 23; r <= 28; r++) { set(te, r, TL.air); set(te + 1, r, TL.air); }
-  for (let r = 29; r <= 32; r++) for (let c = te - 2; c <= px0 + 6; c++) set(c, r, TL.air);
-  L.pads.push({ x: te * T, y: 33 * T, t: 0 });
-  L.decor.push({ k: 'sign', x: (te - 2) * T, y: FLOOR_Y });
-  L.trap = { c0: px0 + 3, c1: px0 + 4, open: 0 };
-  L.tunnel = { x: te * T };
+  buildMaze(L, set, px0);
+  // our base: weapon rack, ammo cart and the shop
+  [['shotgun', 20], ['sniper', 22], ['machinegun', 24], ['dynamite', 26]].forEach(([type, c]) => L.guns.push({ x: c * T, y: FLOOR_Y - 34, type, alive: true, t: 0 }));
+  L.ammo = { x: 30 * T, y: FLOOR_Y }; L.shop = { x: 35 * T, y: FLOOR_Y };
   // armored cart with a cannon and a minigun, parked at our base
-  L.carts = [{ x: 9 * T, y: FLOOR_Y - 60, w: 110, h: 60, vx: 0, vy: 0, face: 1, hp: 220, hpMax: 220, driver: null, cd: 0, ccd: 0, dead: 0, wheel: 0, home: 9 * T }];
+  L.carts = [{ x: 9 * T, y: FLOOR_Y - 60, w: 110, h: 60, vx: 0, vy: 0, face: 1, hp: 2200, hpMax: 2200, driver: null, cd: 0, ccd: 0, dead: 0, wheel: 0, home: 9 * T }];
   L.morph = { c0: 1, c1: 6 };   // chunks that reshape
   L.spawns = [[3 * T, FLOOR_Y - 56], [4 * T + 20, FLOOR_Y - 56], [6 * T, FLOOR_Y - 56]];
   L.enemySpawn = (px0 - 9) * T;
@@ -63,7 +95,10 @@ const Master = {
     G.scene = this; closeAll(); this.D = DIFF[diff]; this.diff = diff;
     G.players.forEach(p => Object.assign(p, { hp: 100, ammo: 12, lock: 0, armor: 0, gun: null, jail: 0, turret: null, streak: 5 }));
     const L = buildMaster(); World.init(L, 'master', G.players, MEV); World.cam = null;
-    World.allies = []; for (let i = 0; i < this.D.allies; i++) this.addAlly(L.spawns[0][0] + i * 40);
+    const U = Save.get('unlocks', {});
+    World.allies = []; for (let i = 0; i < this.D.allies + (U.army ? 3 : 0); i++) this.addAlly(L.spawns[0][0] + i * 40);
+    G.players.forEach(p => { if (U.mg) p.gun = { ...GUNS.machinegun, key: 'machinegun' }; if (U.armor) p.armor = 100; });
+    if (U.cart) L.carts.forEach(c => { c.hp = c.hpMax = 4400; });
     this.phase = -1; this.t = 0; this.spawnT = 0; this.morphT = this.D.morph * FPS; this.warn = 0; this.recruitT = 6 * FPS; this.itemT = 10 * FPS; this.kills = 0; this.over = false; this.caps = 0; this.won = false;
     for (let i = 0; i < 3; i++) this.addCage();
     this.morph(true); show('qbar'); Sound.play('war');
@@ -106,13 +141,16 @@ const Master = {
     const L = World.L, cx = p.x + p.w / 2, cy = p.y + p.h;
     if (p.turret) { p.turret.user = null; p.turret = null; return true; }
     const cart = L.carts.find(c => !c.dead && !c.driver && Math.abs(c.x + c.w / 2 - cx) < 80 && Math.abs(c.y + c.h - cy) < 70); if (cart) { cart.driver = p; p.cart = cart; Sound.sfx('open'); msg(`${p.name} maneja la carreta: mover, disparar, tiro arriba = cañón, saltar = salir`); return true; }
-    if (!L.trap.open && cx > L.trap.c0 * T - 70 && cx < (L.trap.c1 + 1) * T + 70 && cy > 29 * T && cy < 34 * T) { this.setTrap(true); return true; }
+    if (!L.trap.open && cx > L.trap.c0 * T - 90 && cx < (L.trap.c1 + 1) * T + 90 && cy > 26 * T && cy < 31 * T) { this.setTrap(true); return true; }
+    const cv = L.covers.find(cv => !cv.open && cx > cv.c0 * T - 50 && cx < (cv.c1 + 1) * T + 50 && Math.abs(cy - FLOOR_Y) < 40); if (cv) { this.setCover(cv, true); return true; }
+    if (Math.abs(L.shop.x - cx) < 60 && Math.abs(L.shop.y - cy) < 60) { this.shop(p); return true; }
+    if (Math.abs(L.ammo.x - cx) < 60 && Math.abs(L.ammo.y - cy) < 60) { p.ammo = Math.max(p.ammo, 40); if (p.gun && p.gun.key) p.gun.ammo = GUNS[p.gun.key].ammo; p.armor = Math.max(p.armor, 20); Sound.sfx('open'); msg(`${p.name}: ¡munición llena!`); return true; }
     const t = L.turrets.find(t => !t.user && Math.abs(t.x - cx) < 40 && Math.abs(t.y - cy) < 50); if (t) { t.user = p; p.turret = t; Sound.sfx('open'); return true; }
     const c = L.cages.find(c => c.alive && Math.abs(c.x - cx) < 46 && Math.abs(c.y - cy) < 60); if (c) { this.openCage(c); return true; }
     if (G.players.some(q => q.jail) && cx > L.prison.door - 110 && cx < L.prison.x1 + 150 && cy > L.prison.y - 7 * T) { this.freeAll(p); return true; }
     return false;
   },
-  openCage(c) { c.alive = false; Sound.sfx('recruit'); World.burst(c.x, c.y - 40, PAL.cream, 16, 6); if (World.allies.filter(a => !a.dead).length < 14) this.addAlly(c.x - 14); msg('¡Un campesino se une al Ejército Liberador del Sur!'); },
+  openCage(c) { this.addCoins(10); c.alive = false; Sound.sfx('recruit'); World.burst(c.x, c.y - 40, PAL.cream, 16, 6); if (World.allies.filter(a => !a.dead).length < 14) this.addAlly(c.x - 14); msg('¡Un campesino se une al Ejército Liberador del Sur!'); },
   captured(p, by) {
     if (by && by !== p && G.players.includes(by)) return false;   // knocked out by a teammate: just respawn
     const L = World.L; Sound.sfx('jail'); World.burst(p.x + p.w / 2, p.y + 20, p.color, 20, 8);
@@ -141,6 +179,7 @@ const Master = {
     const wasG = m.ground, fall = m.vy; World.moveBody(m, L);
     if (goal && m.ground && m.wall) m.vy = m.t === 'g' ? -15 : -13;
     if (m.t === 's' && goal && m.ground && Math.random() < .01) m.vy = -12;
+    if (goal && m.ground && World.holeAhead(m, goal)) m.vy = m.t === 'g' ? -15 : -12.5;
     m.walk = (m.walk || 0) + Math.abs(m.vx) * .07;
     if (m.y > L.h) m.dead = -1;
     if (!tg) return;
@@ -155,13 +194,28 @@ const Master = {
       if (--m.callT <= 0) { m.callT = 9 * FPS; for (let i = 0; i < (this.diff === 'imposible' ? 4 : 2); i++) this.addEnemy(m.x - 60 + i * 40); msg(`${m.name} llama a su ejército`); }
     }
   },
-  setTrap(open) { const L = World.L, g = L.grid; for (let r = 23; r <= 28; r++) for (let c = L.trap.c0; c <= L.trap.c1; c++) g.t[r * g.cols + c] = open ? TL.air : TL.solid; L.trap.open = open ? 15 * FPS : 0; if (open) { Sound.sfx('boom'); World.shake = 8; msg('¡El túnel está abierto! Bajen por el hueco.'); } },
+  setTrap(open) { const L = World.L, g = L.grid; for (let r = 23; r <= 26; r++) { g.t[r * g.cols + L.trap.c0] = open ? TL.ladder : TL.solid; g.t[r * g.cols + L.trap.c1] = open ? TL.air : TL.solid; } L.trap.open = open ? 15 * FPS : 0; if (open) { Sound.sfx('boom'); World.shake = 8; msg('¡El túnel está abierto! Bajen por el hueco.'); } },
+  setCover(cv, open) { const g = World.L.grid, r = 23; g.t[r * g.cols + cv.c0] = open ? TL.ladder : TL.solid; g.t[r * g.cols + cv.c1] = open ? TL.air : TL.solid; cv.open = open ? 25 * FPS : 0; cv.hp = 4; if (open) { Sound.sfx('hit'); World.burst((cv.c0 + 1) * T, FLOOR_Y, PAL.dirt, 14, 6); } },
+  // ---- coins (saved between games) ----
+  get wallet() { return Save.get('coins', 0); }, addCoins(v) { Save.set('coins', this.wallet + v); },
+  coin(p, v) { this.addCoins(v); },
+  reward(m) { this.addCoins(m.t === 'g' ? 100 : 3); },
+  shop(p) {
+    this.paused = true; const it = SHOP;
+    const html = () => `<h2>Tienda</h2><div>Monedas: <b style="color:#f4ac66">${this.wallet}</b></div>${it.map((x, i) => `<button class="opt" style="background:${this.wallet >= x.cost ? '#5a627a' : '#2b2f3d'}" onclick="Master.buy(${i})"><i>${i + 1}</i>${x.n} · ${x.cost} monedas</button>`).join('')}<div class="small">${x => ''}Gana monedas: federales (3), jefes (100), túneles (5-10), ganar (200).</div><button class="btn" onclick="Master.closeShop()">Salir (Enter)</button>`;
+    this.shopP = p; panel(html(), { enter: () => this.closeShop(), key: e => { const d = /^Digit([1-9])$/.exec(e.code); if (d) { this.buy(+d[1] - 1); return true; } return false; } }); this.shopHtml = html;
+  },
+  buy(i) { const x = SHOP[i], p = this.shopP; if (!x || this.wallet < x.cost) { Sound.sfx('wrong'); return; } this.addCoins(-x.cost); x.f(p, this); Sound.sfx('recruit'); $('panel').innerHTML = this.shopHtml(); },
+  closeShop() { closePanel(); clearPressed(); for (const k in keys) keys[k] = false; this.paused = false; },
   // ---- per frame ----
   update() {
     if (this.paused || this.over) return;
     const L = World.L, D = this.D; this.t++;
     // trapdoor closes again after a while (if nobody is standing in the hole)
-    if (L.trap.open && --L.trap.open <= 0) { const inHole = [...G.players, ...World.allies, ...World.mobs].some(b => !b.dead && b.x + b.w > L.trap.c0 * T && b.x < (L.trap.c1 + 1) * T && b.y + b.h > FLOOR_Y - 4 && b.y < 29 * T); if (inHole) L.trap.open = 60; else this.setTrap(false); }
+    if (L.trap.open && --L.trap.open <= 0) { const inHole = [...G.players, ...World.allies, ...World.mobs].some(b => !b.dead && b.x + b.w > L.trap.c0 * T && b.x < (L.trap.c1 + 1) * T && b.y + b.h > FLOOR_Y - 4 && b.y < 27 * T); if (inHole) L.trap.open = 60; else this.setTrap(false); }
+    // wooden covers over the maze entrances close again after a while
+    for (const cv of L.covers) if (cv.open && --cv.open <= 0) { const inHole = [...G.players, ...World.allies, ...World.mobs].some(b => !b.dead && b.x + b.w > cv.c0 * T && b.x < (cv.c1 + 1) * T && b.y + b.h > FLOOR_Y - 4 && b.y < 27 * T); if (inHole) cv.open = 60; else this.setCover(cv, false); }
+    for (const cv of L.covers) if (!cv.open) for (const s of World.shots) if (!s.enemy && s.l > 0 && s.x > cv.c0 * T - 4 && s.x < (cv.c1 + 1) * T + 4 && s.y > FLOOR_Y - 10 && s.y < FLOOR_Y + T) { s.l = 0; if (--cv.hp <= 0) this.setCover(cv, true); }
     // carts: drive with left/right, any shoot key fires, up-shot fires the cannon, jump gets out
     for (const c of L.carts) {
       if (c.dead > 0) { if (--c.dead === 0) Object.assign(c, { x: c.home, y: FLOOR_Y - 60, hp: c.hpMax, vx: 0, vy: 0 }); continue; }
@@ -224,11 +278,11 @@ const Master = {
     const b = this.boss, armyA = World.allies.filter(a => !a.dead).length, armyE = World.mobs.filter(m => m.t === 's' && !m.dead).length;
     $('qlv').textContent = `Nivel Maestro · ${this.D.label} · Fase ${this.phase + 1} / 3`;
     $('qq').textContent = b ? `${b.name}: ${Math.max(0, b.hp)} / ${b.hpMax}${b.armor > 0 ? ' · armadura ' + b.armor : ''}` : 'Prepárate';
-    $('qa').innerHTML = `<span class="a">Tu ejército: ${armyA}</span><span class="a">Federales: ${armyE}</span><span class="a">${G.players.length === 1 ? `Capturas: ${this.caps} / ${this.diff === 'imposible' ? 2 : 3}` : `Presos: ${G.players.filter(p => p.jail).length}`}</span><span class="a">Cambio en: ${Math.ceil(Math.max(0, this.morphT) / FPS)}s</span>`;
+    $('qa').innerHTML = `<span class="a">Tu ejército: ${armyA}</span><span class="a">Federales: ${armyE}</span><span class="a">${G.players.length === 1 ? `Capturas: ${this.caps} / ${this.diff === 'imposible' ? 2 : 3}` : `Presos: ${G.players.filter(p => p.jail).length}`}</span><span class="a">Cambio en: ${Math.ceil(Math.max(0, this.morphT) / FPS)}s</span><span class="a">Monedas: ${this.wallet}</span>`;
     $('qtime').textContent = '';
   },
   win() {
-    this.over = true; this.won = true; Sound.play('title');
+    this.over = true; this.won = true; this.addCoins(200); Sound.play('title');
     const rows = G.players.slice().sort((a, b) => b.score - a.score).map(p => `<tr><td>${p.name}</td><td>${p.score}</td><td>${p.ko}</td></tr>`).join('');
     Cut.start([{ card: [['¡Tierra y Libertad!', 'Land and Liberty!'], ['La revolución ganó.', 'The revolution won.']] }], () => {
       panel(`<h2>¡Ganaste! Nivel Maestro (${this.D.label})</h2><table style="font-size:24px"><tr><td>Jugador</td><td>Puntos</td><td>KOs</td></tr>${rows}</table><button class="btn" onclick="MasterMenu.open()">Otra vez</button><button class="btn alt" onclick="Chapters.start()">Capítulos</button>`, { enter: () => Chapters.start() });
@@ -240,7 +294,7 @@ const Master = {
   },
   draw() { renderWorld(G.split); },
 };
-const MEV = { msg, interact() {}, note() {}, letter() {}, orb() {}, freeAll: by => Master.freeAll(by),
+const MEV = { msg, interact() {}, note() {}, letter() {}, orb() {}, freeAll: by => Master.freeAll(by), coin: (p, v) => Master.coin(p, v), reward: m => Master.reward(m),
   crate: (p, c) => Master.crate(p, c), chest: (p, c) => Master.chest(p, c), use: p => Master.use(p), captured: (p, by) => Master.captured(p, by), ai: m => Master.ai(m) };
 const MasterMenu = {
   open() {
@@ -248,8 +302,25 @@ const MasterMenu = {
     panel(`<h2>Nivel Maestro: La Revolución</h2><div>Tu ejército contra el ejército federal. El campo cambia de forma. Libera campesinos, usa las ametralladoras y derrota a Huerta, Carranza y Porfirio Díaz.</div>
       <div class="en">Your army vs the federal army. The arena changes shape. Free campesinos, use the machine guns, and defeat Huerta, Carranza and Porfirio Díaz.</div>
       <div class="small">La armadura de los jefes solo se rompe con dinamita, rifle, sombrero, cohetes o las ametralladoras fijas. / Boss armor only breaks with dynamite, rifle, sombrero, rockets or the mounted machine guns.</div>
-      <div class="small">Túnel secreto: baja por el hueco con el letrero, camina bajo la prisión y presiona S para abrir la trampa. Si estás preso, mantén S para cavar. / Secret tunnel under the map into the prison; if you are locked up, hold S to dig out.</div>
+      <div class="small">Túneles: rompe las tapas de madera (S o dispara), baja por la escalera y explora el laberinto. Hay armas y monedas en los túneles, y uno llega debajo de la prisión. Escaleras: mantén saltar para subir. / Break the wooden covers, climb down the ladders and explore the tunnel maze; one tunnel reaches under the prison. Hold jump to climb.</div>
       <div class="lbl">CONTROLES EXTRA</div><div class="small">${PKEYS.slice(0, G.players.length).map((k, i) => `Jugador ${i + 1}: disparar izq ${keyName(k.sl)}, der ${keyName(k.sr)}, arriba ${keyName(k.su)} · acción ${keyName(k.f)} = ametralladora / carreta / jaula / prisión`).join('<br>')}</div>
+      <div class="lbl">MONEDAS: ${Master.wallet} · DESBLOQUEOS PERMANENTES</div>${UNLOCKS.map(u => { const h = Save.get('unlocks', {})[u.id]; return `<button class="opt" style="background:${h ? '#2eb082' : Master.wallet >= u.cost ? '#5a627a' : '#2b2f3d'}" onclick="buyUnlock('${u.id}')"><i>${h ? '' : ''}</i>${u.n} · ${h ? 'listo' : u.cost + ' monedas'}</button>`; }).join('')}
       <button class="btn" onclick="Master.start('normal')">Normal</button><button class="btn" style="background:#d95763;color:#fbf1e3" onclick="Master.start('imposible')">Imposible</button><button class="btn alt" onclick="Chapters.start()">Volver</button>`, { enter: () => Master.start('normal') });
   },
 };
+
+const SHOP = [
+  { n: 'Minigun', cost: 60, f: p => { p.gun = { ...GUNS.minigun, key: 'minigun' }; } },
+  { n: 'Dinamita', cost: 40, f: p => { p.gun = { ...GUNS.dynamite, key: 'dynamite' }; } },
+  { n: 'Armadura +100', cost: 30, f: p => { p.armor = 100; } },
+  { n: 'Vida llena', cost: 15, f: p => { p.hp = 100; } },
+  { n: '3 soldados nuevos', cost: 50, f: (p, M) => { for (let i = 0; i < 3; i++) M.addAlly(p.x - 40 + i * 30); } },
+  { n: 'Reparar la carreta', cost: 25, f: () => World.L.carts.forEach(c => { c.hp = c.hpMax; if (c.dead) c.dead = 1; }) },
+];
+const UNLOCKS = [
+  { id: 'mg', n: 'Empezar con ametralladora', cost: 150 },
+  { id: 'armor', n: 'Empezar con 100 de armadura', cost: 150 },
+  { id: 'army', n: '+3 soldados al empezar', cost: 200 },
+  { id: 'cart', n: 'Carreta blindada (doble vida)', cost: 250 },
+];
+function buyUnlock(id) { const u = UNLOCKS.find(x => x.id === id), have = Save.get('unlocks', {}); if (!u || have[id] || Master.wallet < u.cost) { Sound.sfx('wrong'); return; } Master.addCoins(-u.cost); have[id] = true; Save.set('unlocks', have); Sound.sfx('recruit'); MasterMenu.open(); }

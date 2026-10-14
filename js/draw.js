@@ -21,6 +21,7 @@ function drawGrid(g, L, c, vw) {
   const isS = (cc, r) => { const t = at(cc, r); return t === TL.solid || t === TL.spike; };
   for (let r = r0; r <= r1; r++) for (let cc = c0; cc <= c1; cc++) {
     const t = G.t[r * cols + cc], x = cc * T, y = r * T; if (t === TL.air) continue;
+    if (t === TL.ladder) { tile(g, 'tiles', 71, x, y); continue; }
     if (t === TL.plat) { const l = at(cc - 1, r) === TL.plat, rr = at(cc + 1, r) === TL.plat; tile(g, gs.sheet, !l && !rr ? gs.plat[3] : !l ? gs.plat[0] : !rr ? gs.plat[2] : gs.plat[1], x, y); continue; }
     const open = !isS(cc, r - 1) && at(cc, r - 1) !== TL.plat;
     if (open && r < 26) { const l = isS(cc - 1, r) && !isS(cc - 1, r - 1), rr = isS(cc + 1, r) && !isS(cc + 1, r - 1); tile(g, gs.sheet, !l && !rr ? gs.top[3] : !l ? gs.top[0] : !rr ? gs.top[2] : gs.top[1], x, y); }
@@ -98,6 +99,9 @@ function drawWorld(g, c, vw) {
     g.fillStyle = PAL.ink; g.fillRect(x + c.w / 2 + f * 30 - (f < 0 ? 40 : 0), y + 8, 40, 10); g.fillStyle = PAL.grey; g.fillRect(x + c.w / 2 + f * 30 - (f < 0 ? 38 : -2), y + 10, 36, 6);
     for (const wx of [x + 22, x + c.w - 22]) { g.fillStyle = PAL.ink; g.beginPath(); g.arc(wx, y + 48, 13, 0, 7); g.fill(); g.fillStyle = PAL.dirt; g.beginPath(); g.arc(wx, y + 48, 9, 0, 7); g.fill(); g.strokeStyle = PAL.ink; g.lineWidth = 3; g.beginPath(); g.moveTo(wx + Math.cos(c.wheel) * 9, y + 48 + Math.sin(c.wheel) * 9); g.lineTo(wx - Math.cos(c.wheel) * 9, y + 48 - Math.sin(c.wheel) * 9); g.stroke(); }
     if (c.hp < c.hpMax) { g.fillStyle = PAL.ink; g.fillRect(x, y - 10, c.w, 6); g.fillStyle = PAL.green; g.fillRect(x, y - 10, c.w * c.hp / c.hpMax, 6); } }
+  for (const cv of L.covers || []) if (!cv.open) { const x = cv.c0 * T; g.fillStyle = PAL.ink; g.fillRect(x - 4, FLOOR_Y - 4, 2 * T + 8, 14); g.fillStyle = '#9f6a3a'; g.fillRect(x - 2, FLOOR_Y - 2, 2 * T + 4, 10); g.fillStyle = PAL.dirt2; for (let i = 0; i < 4; i++) g.fillRect(x + i * 18 + 2, FLOOR_Y - 2, 3, 10); }
+  if (L.ammo) { const a = L.ammo; g.fillStyle = PAL.ink; g.fillRect(a.x - 34, a.y - 46, 68, 34); g.fillStyle = '#6a5a3a'; g.fillRect(a.x - 31, a.y - 43, 62, 28); g.fillStyle = PAL.sand; for (let i = 0; i < 5; i++) g.fillRect(a.x - 26 + i * 11, a.y - 52, 6, 12); for (const wx of [a.x - 20, a.x + 20]) { g.fillStyle = PAL.ink; g.fillRect(wx - 8, a.y - 14, 16, 14); } box(g, a.x - 50, a.y - 84, 100, 22, PAL.ink); txt(g, 'MUNICIÓN', a.x, a.y - 67, 9, PAL.sand, 'center'); }
+  if (L.shop) { const s = L.shop; g.fillStyle = PAL.ink; g.fillRect(s.x - 54, s.y - 96, 108, 96); g.fillStyle = PAL.dirt2; g.fillRect(s.x - 50, s.y - 60, 100, 60); for (let i = 0; i < 6; i++) { g.fillStyle = i % 2 ? PAL.cream : PAL.red; g.fillRect(s.x - 54 + i * 18, s.y - 96, 18, 22); } g.fillStyle = PAL.sun; g.fillRect(s.x - 10, s.y - 50, 20, 14); box(g, s.x - 44, s.y - 124, 88, 22, PAL.ink); txt(g, 'TIENDA', s.x, s.y - 107, 9, PAL.sand, 'center'); }
   if (L.trap) { const tx = L.trap.c0 * T; if (!L.trap.open) { g.fillStyle = PAL.ink; g.fillRect(tx - 2, FLOOR_Y - 2, 2 * T + 4, 10); g.fillStyle = PAL.dirt2; for (let i = 0; i < 4; i++) g.fillRect(tx + i * 18, FLOOR_Y, 14, 6); } }
   for (const c of L.cages || []) { if (!c.alive) continue; drawChar(g, 'campesino', c.x, c.y, 2.3, -1, 0); g.fillStyle = PAL.ink; g.fillRect(c.x - 34, c.y - 80, 68, 8); for (let i = 0; i < 7; i++) g.fillRect(c.x - 32 + i * 11, c.y - 76, 4, 76); g.fillRect(c.x - 34, c.y - 4, 68, 4); }
   if (L.prison) { const P = L.prison; g.fillStyle = 'rgba(43,47,61,.35)'; g.fillRect(P.x0, P.y - 5 * T, P.x1 - P.x0, 5 * T); }

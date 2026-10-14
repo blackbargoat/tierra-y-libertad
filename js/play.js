@@ -78,7 +78,7 @@ const World = {
     Object.assign(p, { dead: 3 * FPS, vx: 0, vy: 0, stun: 0, on: null });
   },
   killMob(m, by) {
-    if (m.t === 's' || m.t === 'g') { m.hp = 0; m.dead = -1; this.burst(m.x + m.w / 2, m.y + m.h / 2, m.t === 'g' ? PAL.sand : PAL.maroon, m.t === 'g' ? 70 : 14, m.t === 'g' ? 16 : 7); Sound.sfx(m.t === 'g' ? 'boom' : 'hit'); if (by) { by.score += m.t === 'g' ? 500 : 40; by.ko++; } if (m.t === 'g') this.shake = 25; return; }
+    if (m.t === 's' || m.t === 'g') { m.hp = 0; m.dead = -1; this.burst(m.x + m.w / 2, m.y + m.h / 2, m.t === 'g' ? PAL.sand : PAL.maroon, m.t === 'g' ? 70 : 14, m.t === 'g' ? 16 : 7); Sound.sfx(m.t === 'g' ? 'boom' : 'hit'); if (by) { by.score += m.t === 'g' ? 500 : 40; by.ko++; } if (this.events.reward) this.events.reward(m, by); if (m.t === 'g') this.shake = 25; return; }
     m.hp = 0; m.dead = m.t === 'b' ? -1 : 8 * FPS; this.burst(m.x + m.w / 2, m.y + m.h / 2, m.t === 'b' ? PAL.sand : PAL.maroon, m.t === 'b' ? 60 : 16, m.t === 'b' ? 14 : 8);
     if (by) by.score += m.t === 'b' ? 300 : 30; Sound.sfx(m.t === 'b' ? 'boom' : 'hit');
     if (m.t === 'b') this.events.msg(`${by ? by.name : 'Alguien'} venció a ${m.name}`);
@@ -133,6 +133,7 @@ const World = {
     } else for (const x of xs) if (solid(x, p.y)) { p.y = (Math.floor(p.y / T) + 1) * T; p.vy = 0; break; }
     if (p.ground) p.jumps = 0;
   },
+  holeAhead(b, dir) { const x = b.x + b.w / 2 + dir * (b.w / 2 + 14), y = b.y + b.h + 6, t = tileAt(this.L, x, y), t2 = tileAt(this.L, x, y + T); return t !== TL.solid && t !== TL.plat && t2 !== TL.solid && t2 !== TL.plat; },
   // the Liberating Army of the South: helpers that walk and shoot enemies
   updateAllies() {
     const L = this.L;
@@ -154,6 +155,7 @@ const World = {
       a.vy = Math.min(a.vy + (a.vy < 0 ? .62 : .9), 15);
       const wasWall = a.wall; this.moveBody(a, L);
       if (goal && a.ground && (a.wall || wasWall)) { a.vy = -13; }
+      if (goal && a.ground && this.holeAhead(a, goal)) a.vy = -12.5;
       a.walk += Math.abs(a.vx) * .07;
       for (const m of this.mobs) if (!m.dead && a.inv <= 0 && a.x < m.x + m.w && a.x + a.w > m.x && a.y < m.y + m.h && a.y + a.h > m.y) { a.hp -= 15; a.inv = 40; a.vx = Math.sign(a.x - m.x || 1) * 6; a.vy = -6; }
       if (a.hp <= 0 || a.y > L.h) { this.burst(ax, ay, PAL.cream, 14, 8); a.dead = a.perm ? -1 : 10 * FPS; }
@@ -182,7 +184,10 @@ const World = {
       p.coyote = p.ground ? 7 : Math.max(0, (p.coyote || 0) - 1);
       if (pressed[k.j]) p.jbuf = 8; else if (p.jbuf > 0) p.jbuf--;
       const maxJ = (p.hero === 'villa' ? 3 : 2) + (p.jumpT > 0 ? 1 : 0);
-      if (p.jbuf > 0 && p.stun <= 0) {
+      const cxp = p.x + p.w / 2, onLadder = tileAt(L, cxp, p.y + p.h / 2) === TL.ladder || tileAt(L, cxp, p.y + p.h - 4) === TL.ladder;
+      p.climb = onLadder && !p.jail;
+      if (p.climb) { p.vy = keys[k.j] ? -4.5 : 3.5; p.jbuf = 0; p.jumps = 1; p.vx *= .8; }
+      else if (p.jbuf > 0 && p.stun <= 0) {
         if (p.coyote > 0) { p.vy = -13.2; p.jumps = 1; p.coyote = 0; p.jbuf = 0; p.on = null; p.stretch = 9; this.dust(p, 5); Sound.sfx('jump'); }
         else if (p.jumps < maxJ && pressed[k.j]) { p.vy = -11.6; p.jumps = Math.max(p.jumps, 1) + 1; p.jbuf = 0; p.on = null; p.stretch = 7; Sound.sfx('jump'); this.dust(p, 4); }
       }
@@ -194,7 +199,7 @@ const World = {
           if (aim && p.cd <= 0 && (p.gun || p.ammo > 0)) this.fire(p, aim); }
       } else if (pressed[k.f] && p.stun <= 0 && !battle) this.events.interact(p);
       p.walk += Math.abs(p.vx) * .07; if (p.squash > 0) p.squash--; if (p.stretch > 0) p.stretch--;
-      p.vy = Math.min(p.vy + (p.vy < 0 ? .62 : .9), 15);
+      if (!p.climb) p.vy = Math.min(p.vy + (p.vy < 0 ? .62 : .9), 15);
       const wasG = p.ground, fallV = p.vy, prevB = p.y + p.h; this.moveBody(p, L);
       if (p.ground && !wasG && fallV > 4) { p.squash = 9; this.dust(p, 6); Sound.sfx('step'); }
       if (p.ground && Math.abs(p.vx) > 4 && this.tick % 9 === 0) this.dust(p, 2);
@@ -210,11 +215,11 @@ const World = {
       }
       if (p.dead) continue;
       const near = (o, r) => Math.hypot(p.x + p.w / 2 - o.x, p.y + p.h / 2 - o.y) < r;
-      for (const c of L.coins) if (!c.got && near(c, 30)) { c.got = true; p.score += 10; Sound.sfx('coin'); }
+      for (const c of L.coins) if (!c.got && near(c, 30)) { c.got = true; p.score += 10; Sound.sfx('coin'); if (this.events.coin) this.events.coin(p, c.v || 5); }
       for (const n of L.notes) if (!n.got && near(n, 36)) { n.got = true; p.score += 50; this.events.note(n, p); return; }
       for (const l of L.letters || []) if (!l.got && near(l, 32)) { l.got = true; p.score += 30; Sound.sfx('coin'); this.events.letter && this.events.letter(l, p); }
       for (const h of L.hearts) if (h.alive && near(h, 30) && p.hp < 100) { h.alive = false; h.t = 20 * FPS; p.hp = Math.min(100, p.hp + 40); Sound.sfx('coin'); }
-      for (const g of L.guns) if (g.alive && near(g, 32)) { g.alive = false; g.t = 15 * FPS; p.gun = { ...GUNS[g.type] }; Sound.sfx('open'); this.events.msg(`${p.name} tiene: ${GUNS[g.type].n}`); }
+      for (const g of L.guns) if (g.alive && near(g, 32)) { g.alive = false; g.t = 15 * FPS; p.gun = { ...GUNS[g.type], key: g.type }; Sound.sfx('open'); this.events.msg(`${p.name} tiene: ${GUNS[g.type].n}`); }
       for (const c of L.crates) if (c.alive && near(c, 34)) { c.alive = false; c.t = 20 * FPS; this.events.crate(p, c); return; }
       for (const c of L.chests) if (c.alive && near(c, 34)) { c.alive = false; c.t = 25 * FPS; this.events.chest(p, c); return; }
       if (battle && p.lock === 0) for (const o of this.orbs) {
