@@ -215,7 +215,7 @@ const Master = {
     if (L.trap.open && --L.trap.open <= 0) { const inHole = [...G.players, ...World.allies, ...World.mobs].some(b => !b.dead && b.x + b.w > L.trap.c0 * T && b.x < (L.trap.c1 + 1) * T && b.y + b.h > FLOOR_Y - 4 && b.y < 27 * T); if (inHole) L.trap.open = 60; else this.setTrap(false); }
     // climbing up into a closed cover or trapdoor pushes it open from below
     for (const p of [...G.players.filter(q => !q.dead), ...World.allies.filter(a => !a.dead)]) {
-      const cx = p.x + p.w / 2, under = (c0, c1) => cx > c0 * T - 6 && cx < (c1 + 1) * T + 6 && p.y < 25 * T + 8 && p.y + p.h > 24 * T;
+      const under = (c0, c1) => p.x + p.w > c0 * T - 4 && p.x < (c1 + 1) * T + 4 && p.y < 27 * T && p.y + p.h > 24 * T;
       for (const cv of L.covers) if (!cv.open && under(cv.c0, cv.c1)) this.setCover(cv, true);
       if (!L.trap.open && !p.jail && under(L.trap.c0, L.trap.c1)) this.setTrap(true);
     }
