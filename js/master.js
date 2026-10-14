@@ -142,7 +142,7 @@ const Master = {
     if (p.turret) { p.turret.user = null; p.turret = null; return true; }
     const cart = L.carts.find(c => !c.dead && !c.driver && Math.abs(c.x + c.w / 2 - cx) < 80 && Math.abs(c.y + c.h - cy) < 70); if (cart) { cart.driver = p; p.cart = cart; Sound.sfx('open'); msg(`${p.name} maneja la carreta: mover, disparar, tiro arriba = cañón, saltar = salir`); return true; }
     if (!L.trap.open && cx > L.trap.c0 * T - 90 && cx < (L.trap.c1 + 1) * T + 90 && cy > 26 * T && cy < 31 * T) { this.setTrap(true); return true; }
-    const cv = L.covers.find(cv => !cv.open && cx > cv.c0 * T - 50 && cx < (cv.c1 + 1) * T + 50 && Math.abs(cy - FLOOR_Y) < 40); if (cv) { this.setCover(cv, true); return true; }
+    const cv = L.covers.find(cv => !cv.open && cx > cv.c0 * T - 50 && cx < (cv.c1 + 1) * T + 50 && cy > FLOOR_Y - 40 && cy < 29 * T); if (cv) { this.setCover(cv, true); return true; }
     if (Math.abs(L.shop.x - cx) < 60 && Math.abs(L.shop.y - cy) < 60) { this.shop(p); return true; }
     if (Math.abs(L.ammo.x - cx) < 60 && Math.abs(L.ammo.y - cy) < 60) { p.ammo = Math.max(p.ammo, 40); if (p.gun && p.gun.key) p.gun.ammo = GUNS[p.gun.key].ammo; p.armor = Math.max(p.armor, 20); Sound.sfx('open'); msg(`${p.name}: ¡munición llena!`); return true; }
     const t = L.turrets.find(t => !t.user && Math.abs(t.x - cx) < 40 && Math.abs(t.y - cy) < 50); if (t) { t.user = p; p.turret = t; Sound.sfx('open'); return true; }
@@ -213,6 +213,12 @@ const Master = {
     const L = World.L, D = this.D; this.t++;
     // trapdoor closes again after a while (if nobody is standing in the hole)
     if (L.trap.open && --L.trap.open <= 0) { const inHole = [...G.players, ...World.allies, ...World.mobs].some(b => !b.dead && b.x + b.w > L.trap.c0 * T && b.x < (L.trap.c1 + 1) * T && b.y + b.h > FLOOR_Y - 4 && b.y < 27 * T); if (inHole) L.trap.open = 60; else this.setTrap(false); }
+    // climbing up into a closed cover or trapdoor pushes it open from below
+    for (const p of [...G.players.filter(q => !q.dead), ...World.allies.filter(a => !a.dead)]) {
+      const cx = p.x + p.w / 2, under = (c0, c1) => cx > c0 * T - 6 && cx < (c1 + 1) * T + 6 && p.y < 25 * T + 8 && p.y + p.h > 24 * T;
+      for (const cv of L.covers) if (!cv.open && under(cv.c0, cv.c1)) this.setCover(cv, true);
+      if (!L.trap.open && !p.jail && under(L.trap.c0, L.trap.c1)) this.setTrap(true);
+    }
     // wooden covers over the maze entrances close again after a while
     for (const cv of L.covers) if (cv.open && --cv.open <= 0) { const inHole = [...G.players, ...World.allies, ...World.mobs].some(b => !b.dead && b.x + b.w > cv.c0 * T && b.x < (cv.c1 + 1) * T && b.y + b.h > FLOOR_Y - 4 && b.y < 27 * T); if (inHole) cv.open = 60; else this.setCover(cv, false); }
     for (const cv of L.covers) if (!cv.open) for (const s of World.shots) if (!s.enemy && s.l > 0 && s.x > cv.c0 * T - 4 && s.x < (cv.c1 + 1) * T + 4 && s.y > FLOOR_Y - 10 && s.y < FLOOR_Y + T) { s.l = 0; if (--cv.hp <= 0) this.setCover(cv, true); }
